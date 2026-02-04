@@ -1,0 +1,12 @@
+# Place your licensed Invision Community 4.x files in this directory
+
+Copy all IPS4 files here, including:
+- index.php
+- conf_global.php (will be created during installation)
+- uploads/
+- applications/
+- core/
+- system/
+- and all other IPS4 directories and files
+
+Do NOT commit your actual IPS4 files to version control.

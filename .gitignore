@@ -6,13 +6,17 @@
 # Data directories (persistent data)
 # Ignore all data contents EXCEPT setup files
 data/*
+!data/ips/
+!data/ssl/
+data/ips/*
 !data/ips/index.php
 !data/ips/ips4.php
 !data/ips/.gitkeep
-
-# Ignore SSL certificates in data/ssl
 data/ssl/*
+!data/ssl/.gitkeep
 
+# Certbot credentials (generated at runtime, contains secrets)
+certbot/cloudflare.ini
 
 # Backup files
 *.backup
