@@ -1,58 +1,53 @@
 # IPS4 Docker Stack
 
-A complete Docker Compose setup for Invision Community (IPS4) with MySQL, Redis, PHP-FPM, and Nginx.
+Production-ready Docker Compose setup for Invision Community (IPS4) with MySQL 8.4, Redis 7, PHP-FPM 8.1, Nginx, and automatic SSL via Let's Encrypt.
 
 ## Features
 
-- **IPS4**: Full Invision Community support
-- **MySQL**: Database backend
-- **Redis**: Caching layer
-- **PHP-FPM**: PHP 8.x with required extensions
-- **Nginx**: Web server with HTTP and HTTPS support
-- **Certbot**: Automatic SSL certificate renewal with Let's Encrypt
-- **Docker Compose Profiles**: Simple SSL enable/disable via profile flag
+- **Full IPS4 Support** - PHP 8.1 with all required extensions
+- **High Performance** - Redis caching, OPcache, optimized MySQL
+- **Automatic SSL** - Let's Encrypt with auto-renewal via Certbot
+- **Easy Deployment** - Single command startup with Docker Compose profiles
 
 ## Quick Start
 
-### 1. Clone and Setup
-
 ```bash
-# Copy the example environment file
+# 1. Setup environment
 cp .env.example .env
+nano .env  # Set your passwords
 
-# Edit .env with your settings
-nano .env
-```
-
-### 2. Configure Environment
-
-Edit `.env` and set your database passwords:
-
-```bash
-MYSQL_PASSWORD=your_secure_password
-MYSQL_ROOT_PASSWORD=your_secure_root_password
-```
-
-### 3. Start the Stack
-
-```bash
-# Start all services (HTTP only)
+# 2. Start (HTTP)
 docker compose up -d
 
-# Or start with HTTPS enabled
-docker compose --profile https up -d
+# 3. Access
+open http://localhost
 ```
 
-### 4. Access Your Site
+## Services
 
-- **HTTP**: `http://localhost` (or your configured `HTTP_PORT`)
-- **HTTPS**: `https://localhost` (or your configured `HTTPS_PORT`, when enabled)
+| Service | Description | Port |
+|---------|-------------|------|
+| `nginx` | Web server (HTTP) | 80 |
+| `nginx-https` | Web server (HTTPS) | 80, 443 |
+| `php` | PHP-FPM 8.1 | 9000 |
+| `db` | MySQL 8.4 | 3306 |
+| `redis` | Redis 7 | 6379 |
+| `certbot` | SSL renewal | - |
 
-## SSL/HTTPS Configuration
+## Environment Variables
 
-### Initial SSL Setup with Let's Encrypt
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MYSQL_PASSWORD` | - | MySQL user password (required) |
+| `MYSQL_ROOT_PASSWORD` | - | MySQL root password (required) |
+| `HTTP_PORT` | `80` | HTTP port |
+| `HTTPS_PORT` | `443` | HTTPS port |
+| `DOMAIN` | `example.com` | Domain for SSL certificate |
+| `CERTBOT_EMAIL` | - | Email for Let's Encrypt notifications |
 
-**Option A: Use the helper script (recommended)**:
+## SSL/HTTPS Setup
+
+### Automated Setup (Recommended)
 
 ```bash
 chmod +x scripts/init-ssl.sh
@@ -60,68 +55,55 @@ chmod +x scripts/init-ssl.sh
 docker compose --profile https up -d
 ```
 
-**Option B: Manual setup**:
-
-1. Create required directories:
+### Manual Setup
 
 ```bash
+# 1. Create directories
 mkdir -p data/ssl data/certbot/www data/certbot/logs
-```
 
-2. Start HTTP nginx for ACME challenge:
-
-```bash
+# 2. Get certificate
 docker compose up -d nginx
-```
-
-3. Request certificate:
-
-```bash
-docker compose run --rm certbot certonly \
-  --webroot \
+docker compose run --rm certbot certonly --webroot \
   --webroot-path=/var/www/certbot \
-  --email your@email.com \
-  --agree-tos \
-  --no-eff-email \
+  --email your@email.com --agree-tos --no-eff-email \
   -d yourdomain.com
-```
-
-4. Create certificate symlinks:
-
-```bash
 docker compose down
+
+# 3. Link certificates
 ln -sf live/yourdomain.com/fullchain.pem data/ssl/fullchain.pem
 ln -sf live/yourdomain.com/privkey.pem data/ssl/privkey.pem
-```
 
-5. Start with HTTPS:
-
-```bash
+# 4. Start with HTTPS
 docker compose --profile https up -d
 ```
 
-### Automatic Certificate Renewal
+### Auto-Renewal
 
-When running with the `https` profile, certificate renewal is fully automated:
+With the `https` profile, certificates are automatically renewed daily. No cron jobs needed.
 
-- **certbot** container checks for renewal once daily
-- **nginx-reload** container reloads nginx daily to pick up renewed certificates
-- Certificates are only renewed within 30 days of expiry (respects Let's Encrypt rate limits)
+## IPS4 Installation
 
-To manually trigger a renewal:
+1. Extract IPS4 files to `data/ips/`
+2. Visit `http://yourdomain.com`
+3. Use these database settings:
+   - **Host:** `db`
+   - **Database:** `ips`
+   - **User:** `ips`
+   - **Password:** Your `MYSQL_PASSWORD`
+
+4. Enable Redis caching in AdminCP:
+   - **Host:** `redis`
+   - **Port:** `6379`
+
+## Commands
 
 ```bash
-docker compose exec certbot certbot renew
-docker compose kill -s HUP nginx-https
-```
-
-### Disabling HTTPS
-
-To switch back to HTTP only:
-
-```bash
-docker compose down
-docker compose up -d
+docker compose up -d                    # Start (HTTP)
+docker compose --profile https up -d    # Start (HTTPS)
+docker compose down                     # Stop
+docker compose logs -f [service]        # View logs
+docker compose restart [service]        # Restart service
+docker compose exec db mysqldump -u root -p ips > backup.sql  # Backup DB
 ```
 
 ## Directory Structure
@@ -129,115 +111,28 @@ docker compose up -d
 ```
 ips4-docker-stack/
 ├── data/
-│   ├── ips/          # IPS4 application files (mount your IPS4 here)
-│   ├── mysql/        # MySQL data persistence
-│   ├── redis/        # Redis data persistence
-│   ├── ssl/          # SSL certificates (symlinks to Let's Encrypt certs)
-│   ├── certbot/      # Certbot data
-│   │   ├── www/      # ACME challenge webroot
-│   │   └── logs/     # Certbot logs
-│   └── logs/         # Application logs
-│       ├── nginx/
-│       └── php/
-├── nginx/
-│   ├── http.conf     # HTTP-only nginx configuration
-│   └── https.conf    # HTTPS nginx configuration
-├── php/
-│   └── Dockerfile    # PHP-FPM custom image
-├── redis/
-│   └── redis.conf    # Redis configuration
-├── .env              # Environment variables (create from .env.example)
-├── .env.example      # Environment variables template
+│   ├── ips/           # IPS4 files (place your files here)
+│   ├── mysql/         # MySQL data
+│   ├── redis/         # Redis data
+│   ├── ssl/           # SSL certificates
+│   └── certbot/       # Certbot data
+├── nginx/             # Nginx configs
+├── php/               # PHP-FPM Dockerfile & config
+├── mysql/             # MySQL Dockerfile & config
+├── redis/             # Redis config
+├── scripts/           # Helper scripts
 └── docker-compose.yml
-```
-
-## Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MYSQL_PASSWORD` | `change_me_to_strong_password` | MySQL user password |
-| `MYSQL_ROOT_PASSWORD` | `change_me_to_strong_root_password` | MySQL root password |
-| `HTTP_PORT` | `80` | HTTP port |
-| `HTTPS_PORT` | `443` | HTTPS port |
-| `DOMAIN` | `example.com` | Your domain name (for SSL) |
-| `CERTBOT_EMAIL` | `admin@example.com` | Email for Let's Encrypt notifications |
-
-## Common Commands
-
-```bash
-# Start services
-docker compose up -d
-
-# Start with HTTPS
-docker compose --profile https up -d
-
-# Stop services
-docker compose down
-
-# View logs
-docker compose logs -f
-
-# View logs for specific service
-docker compose logs -f nginx
-
-# Restart a service
-docker compose restart nginx
 ```
 
 ## Troubleshooting
 
-### Nginx shows default page instead of IPS4
-
-Make sure your IPS4 files are in the correct location:
-```
-data/ips/
-├── index.php
-├── conf_global.php
-└── ... (other IPS4 files)
-```
-
-### SSL Certificate Errors
-
-If you see certificate errors when starting HTTPS:
-
-1. Ensure certificates exist in `data/ssl/`:
-   - `fullchain.pem` (or symlink to `live/yourdomain.com/fullchain.pem`)
-   - `privkey.pem` (or symlink to `live/yourdomain.com/privkey.pem`)
-
-2. Check symlinks are correct:
-```bash
-ls -la data/ssl/
-```
-
-3. Verify Let's Encrypt certificates exist:
-```bash
-ls -la data/ssl/live/yourdomain.com/
-```
-
-### Certificate Renewal Issues
-
-Check certbot logs:
-```bash
-docker compose logs certbot
-cat data/certbot/logs/letsencrypt.log
-```
-
-Manually test renewal:
-```bash
-docker compose exec certbot certbot renew --dry-run
-```
-
-### Database Connection Issues
-
-Check that MySQL is healthy:
-```bash
-docker compose ps
-```
-
-If MySQL is restarting, check the logs:
-```bash
-docker compose logs db
-```
+| Issue | Solution |
+|-------|----------|
+| Default nginx page | Ensure IPS4 files are in `data/ips/` |
+| Database connection failed | Check `docker compose ps db` and verify `.env` passwords |
+| SSL errors | Run `ls -la data/ssl/` to verify certificates exist |
+| Port in use | Change `HTTP_PORT` or `HTTPS_PORT` in `.env` |
+| Permission denied | Run `sudo chown -R 33:33 data/ips/` (Linux) |
 
 ## License
 

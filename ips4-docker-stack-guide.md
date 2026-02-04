@@ -1,383 +1,188 @@
-# IPS4 Docker Stack - Complete Setup Guide
+# IPS4 Docker Stack - Installation Guide
 
-This guide will walk you through setting up Invision Community (IPS4) using Docker Compose.
-
-## Table of Contents
-
-1. [Prerequisites](#prerequisites)
-2. [Initial Setup](#initial-setup)
-3. [Configuration](#configuration)
-4. [Starting the Stack](#starting-the-stack)
-5. [Installing IPS4](#installing-ips4)
-6. [SSL/HTTPS Setup](#sslhttps-setup)
-7. [Maintenance](#maintenance)
-8. [Troubleshooting](#troubleshooting)
+Complete walkthrough for deploying Invision Community 4 with Docker.
 
 ## Prerequisites
 
 - Docker Engine 20.10+
 - Docker Compose 2.0+
-- At least 2GB RAM
-- 10GB free disk space
+- 2GB+ RAM, 10GB+ disk space
+- IPS4 license and files
 
-## Initial Setup
-
-### 1. Clone or Download the Project
+## Step 1: Initial Setup
 
 ```bash
-cd /path/to/your/projects
-# If cloning from git
+# Clone/download the project
 git clone <repository-url> ips4-docker-stack
 cd ips4-docker-stack
-```
 
-### 2. Create Environment File
-
-```bash
+# Create environment file
 cp .env.example .env
 ```
 
-### 3. Prepare IPS4 Files
+## Step 2: Configure Environment
 
-Place your IPS4 files in the `data/ips/` directory:
-
-```bash
-# Create directory if it doesn't exist
-mkdir -p data/ips
-
-# Copy or extract IPS4 files to data/ips/
-# The structure should look like:
-# data/ips/
-# ├── index.php
-# ├── conf_global.php
-# ├── applications/
-# ├── system/
-# └── ... (other IPS4 files)
-```
-
-## Configuration
-
-### Edit .env File
-
-Open `.env` in your editor and configure:
+Edit `.env` with secure passwords:
 
 ```bash
-# Database Configuration
-MYSQL_PASSWORD=your_secure_password_here
-MYSQL_ROOT_PASSWORD=your_secure_root_password_here
-
-# Port Configuration
+MYSQL_PASSWORD=your_secure_password
+MYSQL_ROOT_PASSWORD=your_secure_root_password
 HTTP_PORT=80
 HTTPS_PORT=443
-
-# SSL Configuration
-SSL_ENABLED=false
 ```
 
-**Important**: Use strong, unique passwords for production use.
+## Step 3: Add IPS4 Files
 
-### Database Settings
+Extract your IPS4 files to `data/ips/`:
 
-The stack uses these default database settings:
+```
+data/ips/
+├── index.php
+├── applications/
+├── system/
+└── uploads/
+```
 
-- **Host**: `db`
-- **Database**: `ips`
-- **User**: `ips`
-- **Password**: (set in `MYSQL_PASSWORD`)
-
-These are configured in the PHP container and don't need to be changed.
-
-## Starting the Stack
-
-### Start HTTP Only (Default)
+## Step 4: Start Services
 
 ```bash
+# HTTP only
 docker compose up -d
-```
 
-This will start:
-- MySQL database
-- Redis cache
-- PHP-FPM
-- Nginx (HTTP only)
-
-### Start with HTTPS
-
-```bash
+# With HTTPS (after SSL setup)
 docker compose --profile https up -d
 ```
 
-This will start all services plus the HTTPS nginx service.
-
-### Check Status
+Verify all services are running:
 
 ```bash
 docker compose ps
 ```
 
-All services should show "Up" or "healthy".
+## Step 5: Install IPS4
 
-## Installing IPS4
+1. Open `http://your-server-ip` in browser
+2. Follow the installation wizard
+3. Database settings:
 
-### 1. Access the Installer
+| Setting | Value |
+|---------|-------|
+| Host | `db` |
+| Database | `ips` |
+| Username | `ips` |
+| Password | Your `MYSQL_PASSWORD` |
 
-Open your browser and navigate to:
-- HTTP: `http://localhost` (or your configured `HTTP_PORT`)
+4. Complete setup and create admin account
+5. Delete installer: `rm -rf data/ips/install/`
 
-### 2. Run the Installer
+## Step 6: Enable Redis (Recommended)
 
-Follow the IPS4 installation wizard:
+In AdminCP, go to **System > Advanced Configuration > Caching**:
 
-1. **System Requirements**: Click "Continue"
-2. **Database Information**:
-   - Database Server: `db`
-   - Database Name: `ips`
-   - Database Username: `ips`
-   - Database Password: (your `MYSQL_PASSWORD`)
-   - Table Prefix: (leave empty or use `ips_`)
-3. **Admin Account**: Create your admin credentials
-4. **Configuration**: Review and confirm settings
+| Setting | Value |
+|---------|-------|
+| Method | Redis |
+| Host | `redis` |
+| Port | `6379` |
 
-### 3. Complete Installation
+## Step 7: SSL Setup (Production)
 
-After installation, remove the install files:
-
-```bash
-rm -rf data/ips/install/
-```
-
-## SSL/HTTPS Setup
-
-### Option 1: Using Let's Encrypt (Recommended)
-
-1. **Generate Certificates**:
+### Option A: Automated Script
 
 ```bash
-# Stop the stack temporarily
-docker compose down
-
-# Use certbot to generate certificates
-certbot certonly --standalone -d yourdomain.com -d www.yourdomain.com
-```
-
-2. **Copy Certificates**:
-
-```bash
-mkdir -p data/ssl
-cp /etc/letsencrypt/live/yourdomain.com/fullchain.pem data/ssl/
-cp /etc/letsencrypt/live/yourdomain.com/privkey.pem data/ssl/
-```
-
-3. **Enable HTTPS in .env**:
-
-```bash
-SSL_ENABLED=true
-```
-
-4. **Start with HTTPS**:
-
-```bash
+./scripts/init-ssl.sh yourdomain.com your@email.com
 docker compose --profile https up -d
 ```
 
-### Option 2: Using Existing Certificates
-
-If you have certificates from another source:
-
-1. **Copy Certificates**:
+### Option B: Manual
 
 ```bash
-mkdir -p data/ssl
-cp /path/to/your/fullchain.pem data/ssl/
-cp /path/to/your/privkey.pem data/ssl/
-```
+mkdir -p data/ssl data/certbot/www data/certbot/logs
+docker compose up -d nginx
 
-2. **Enable HTTPS**:
+docker compose run --rm certbot certonly --webroot \
+  --webroot-path=/var/www/certbot \
+  --email your@email.com --agree-tos --no-eff-email \
+  -d yourdomain.com
 
-```bash
-SSL_ENABLED=true
-```
-
-3. **Restart with HTTPS**:
-
-```bash
 docker compose down
+ln -sf live/yourdomain.com/fullchain.pem data/ssl/fullchain.pem
+ln -sf live/yourdomain.com/privkey.pem data/ssl/privkey.pem
 docker compose --profile https up -d
 ```
 
-### Option 3: Self-Signed Certificates (Testing Only)
-
-For local testing, you can generate self-signed certificates:
+### Option C: Self-Signed (Testing)
 
 ```bash
 mkdir -p data/ssl
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-  -keyout data/ssl/privkey.pem \
-  -out data/ssl/fullchain.pem \
-  -subj "/C=US/ST=State/L=City/O=Organization/CN=localhost"
+  -keyout data/ssl/privkey.pem -out data/ssl/fullchain.pem \
+  -subj "/CN=localhost"
+docker compose --profile https up -d
 ```
-
-Then enable HTTPS as above.
 
 ## Maintenance
 
-### Updating IPS4
-
-1. **Backup your data**:
-```bash
-docker compose exec db mysqldump -u root -p${MYSQL_ROOT_PASSWORD} ips > backup.sql
-```
-
-2. **Upload new IPS4 files** to `data/ips/`
-
-3. **Run the upgrader** by visiting `http://yourdomain.com/admin/upgrade`
-
-### Viewing Logs
-
-```bash
-# All services
-docker compose logs -f
-
-# Specific service
-docker compose logs -f nginx
-docker compose logs -f php
-docker compose logs -f db
-```
-
-### Restarting Services
-
-```bash
-# All services
-docker compose restart
-
-# Specific service
-docker compose restart nginx
-```
-
-### Updating Docker Images
-
-```bash
-docker compose pull
-docker compose up -d
-```
-
 ### Backups
 
-Regular backups are essential:
+```bash
+# Database
+docker compose exec db mysqldump -u root -p${MYSQL_ROOT_PASSWORD} ips > backup.sql
+
+# Files
+tar -czf ips-files-backup.tar.gz data/ips/
+```
+
+### Updates
 
 ```bash
-# Database backup
-docker compose exec db mysqldump -u root -p${MYSQL_ROOT_PASSWORD} ips > backup-$(date +%Y%m%d).sql
+# Update IPS4: upload new files to data/ips/, then visit /admin/upgrade
 
-# Files backup
-tar -czf ips-files-$(date +%Y%m%d).tar.gz data/ips/
+# Update Docker images
+docker compose pull && docker compose up -d
+```
+
+### Logs
+
+```bash
+docker compose logs -f          # All services
+docker compose logs -f nginx    # Specific service
 ```
 
 ## Troubleshooting
 
-### Nginx Shows Default Page
-
-**Problem**: You see the "Welcome to nginx!" page instead of IPS4.
-
-**Solution**: Ensure your IPS4 files are in `data/ips/`:
-
-```bash
-ls -la data/ips/
-# Should show index.php, conf_global.php, etc.
-```
-
 ### Database Connection Failed
 
-**Problem**: IPS4 can't connect to the database.
-
-**Solution**:
-1. Check MySQL is running:
 ```bash
-docker compose ps db
+docker compose ps db           # Check if running
+docker compose logs db         # Check logs
 ```
 
-2. Check MySQL logs:
+### Permission Issues (Linux)
+
 ```bash
-docker compose logs db
+sudo chown -R 33:33 data/ips/  # www-data user
 ```
 
-3. Verify database credentials in `.env`
+### SSL Certificate Issues
 
-### SSL Certificate Errors
-
-**Problem**: HTTPS nginx fails to start with certificate errors.
-
-**Solution**:
-1. Verify certificates exist:
 ```bash
-ls -la data/ssl/
-# Should show fullchain.pem and privkey.pem
+ls -la data/ssl/                              # Check files exist
+docker compose logs certbot                   # Check certbot logs
+docker compose exec certbot certbot renew --dry-run  # Test renewal
 ```
 
-2. Check certificate permissions:
-```bash
-chmod 644 data/ssl/fullchain.pem
-chmod 600 data/ssl/privkey.pem
-```
+### Port Conflicts
 
-3. Verify certificates are valid:
-```bash
-openssl x509 -in data/ssl/fullchain.pem -text -noout
-```
-
-### Port Already in Use
-
-**Problem**: Port 80 or 443 is already in use.
-
-**Solution**: Change the port in `.env`:
+Edit `.env`:
 
 ```bash
 HTTP_PORT=8080
 HTTPS_PORT=8443
 ```
 
-Then restart:
-```bash
-docker compose down
-docker compose up -d
-```
-
-### Permission Issues
-
-**Problem**: Files can't be written by PHP.
-
-**Solution**: Fix permissions:
-
-```bash
-# On Linux
-sudo chown -R 33:33 data/ips/
-# (33 is the www-data user ID in the PHP container)
-```
-
-### Health Checks Failing
-
-**Problem**: Services keep restarting.
-
-**Solution**:
-1. Check logs for the failing service:
-```bash
-docker compose logs <service-name>
-```
-
-2. Ensure all dependencies are healthy:
-```bash
-docker compose ps
-```
-
-## Additional Resources
+## Resources
 
 - [IPS4 Documentation](https://invisioncommunity.com/documentation/)
-- [Docker Compose Documentation](https://docs.docker.com/compose/)
-- [Nginx Documentation](https://nginx.org/en/docs/)
-- [Let's Encrypt Documentation](https://letsencrypt.org/docs/)
-
-## Support
-
-For issues specific to this Docker stack, please check the troubleshooting section above or open an issue in the project repository.
-
-For IPS4-specific issues, please refer to the [Invision Community Forums](https://invisioncommunity.com/forums/).
+- [Docker Compose Docs](https://docs.docker.com/compose/)
+- [Let's Encrypt Docs](https://letsencrypt.org/docs/)
