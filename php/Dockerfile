@@ -39,10 +39,12 @@ COPY www.conf /usr/local/etc/php-fpm.d/www.conf
 # Set working directory
 WORKDIR /var/www/html
 
-# Create a healthcheck script
-RUN echo '#!/bin/sh' > /usr/local/bin/healthcheck.sh \
-    && echo 'php-fpm-healthcheck || exit 1' >> /usr/local/bin/healthcheck.sh \
-    && chmod +x /usr/local/bin/healthcheck.sh
+# Install fcgi for healthcheck
+RUN apt-get update && apt-get install -y --no-install-recommends libfcgi-bin \
+    && rm -rf /var/lib/apt/lists/*
+
+# Enable PHP-FPM status page for healthcheck
+RUN echo 'pm.status_path = /status' >> /usr/local/etc/php-fpm.d/zz-docker.conf
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-    CMD /usr/local/bin/healthcheck.sh || exit 1
+    CMD SCRIPT_NAME=/status SCRIPT_FILENAME=/status REQUEST_METHOD=GET cgi-fcgi -bind -connect 127.0.0.1:9000 || exit 1
