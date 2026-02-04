@@ -50,3 +50,4 @@ temp/
 # IPS4 specific files (if accidentally copied)
 conf_global.php
 requirements.php
+.claude/settings.local.json
