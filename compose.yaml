@@ -50,7 +50,7 @@ services:
     networks:
       - ips-network
 
-  # HTTP-only nginx (default, no profile needed)
+  # HTTP-only nginx (enable with COMPOSE_PROFILES=http or no profile set)
   nginx:
     image: nginx:stable-alpine
     depends_on:
@@ -71,6 +71,8 @@ services:
       start_period: 40s
     networks:
       - ips-network
+    profiles:
+      - http
 
   # HTTPS nginx (enable with --profile https)
   nginx-https:

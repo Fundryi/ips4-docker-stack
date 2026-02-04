@@ -42,7 +42,7 @@ open http://localhost
 | `MYSQL_ROOT_PASSWORD` | - | MySQL root password (required) |
 | `HTTP_PORT` | `80` | HTTP port |
 | `HTTPS_PORT` | `443` | HTTPS port |
-| `COMPOSE_PROFILES` | - | Set to `https` to enable SSL |
+| `COMPOSE_PROFILES` | `http` | `http` for HTTP only, `https` for SSL |
 | `DOMAIN` | `example.com` | Domain for SSL certificate |
 | `CERTBOT_EMAIL` | - | Email for Let's Encrypt notifications |
 | `CLOUDFLARE_API_TOKEN` | - | Cloudflare API token for DNS challenge (optional) |
@@ -115,14 +115,14 @@ Certificates are automatically renewed daily. No cron jobs needed.
 
 Edit `.env`:
 ```bash
-# HTTP only (default)
-#COMPOSE_PROFILES=https
+# HTTP only
+COMPOSE_PROFILES=http
 
 # HTTPS enabled
 COMPOSE_PROFILES=https
 ```
 
-Then restart: `docker compose up -d`
+Then restart: `docker compose down && docker compose up -d`
 
 ## IPS4 Installation
 

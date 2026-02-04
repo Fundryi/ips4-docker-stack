@@ -72,13 +72,13 @@ EOF
 else
     # HTTP Challenge
     echo "==> Starting nginx for ACME challenge..."
-    docker compose up -d nginx
+    docker compose --profile http up -d nginx
 
     echo "==> Waiting for nginx to be ready..."
     sleep 5
 
     echo "==> Requesting certificate via HTTP challenge..."
-    docker compose run --rm certbot certonly \
+    docker compose --profile http run --rm certbot certonly \
         --webroot \
         --webroot-path=/var/www/certbot \
         --email "$EMAIL" \
@@ -87,7 +87,7 @@ else
         -d "$DOMAIN"
 
     echo "==> Stopping nginx..."
-    docker compose down
+    docker compose --profile http down
 fi
 
 echo "==> Creating certificate symlinks..."
@@ -96,11 +96,9 @@ ln -sf "live/$DOMAIN/privkey.pem" data/ssl/privkey.pem
 
 echo "==> Enabling HTTPS in .env..."
 if [ -f .env ]; then
-    if grep -q "^#COMPOSE_PROFILES=https" .env; then
-        sed -i 's/^#COMPOSE_PROFILES=https/COMPOSE_PROFILES=https/' .env
-        echo "    Uncommented COMPOSE_PROFILES=https"
-    elif grep -q "^COMPOSE_PROFILES=https" .env; then
-        echo "    COMPOSE_PROFILES=https already enabled"
+    if grep -q "^COMPOSE_PROFILES=" .env; then
+        sed -i 's/^COMPOSE_PROFILES=.*/COMPOSE_PROFILES=https/' .env
+        echo "    Set COMPOSE_PROFILES=https"
     else
         echo "COMPOSE_PROFILES=https" >> .env
         echo "    Added COMPOSE_PROFILES=https"
