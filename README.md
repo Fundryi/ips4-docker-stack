@@ -104,8 +104,8 @@ docker compose --profile https up -d
 
 When running with the `https` profile, certificate renewal is fully automated:
 
-- **certbot** container checks for renewal every 12 hours
-- **nginx-reload** container reloads nginx every 12 hours to pick up new certificates
+- **certbot** container checks for renewal once daily
+- **nginx-reload** container reloads nginx daily to pick up renewed certificates
 - Certificates are only renewed within 30 days of expiry (respects Let's Encrypt rate limits)
 
 To manually trigger a renewal:

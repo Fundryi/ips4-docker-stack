@@ -99,7 +99,7 @@ services:
       - ./data/ssl:/etc/letsencrypt
       - ./data/certbot/www:/var/www/certbot
       - ./data/certbot/logs:/var/log/letsencrypt
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot; sleep 12h & wait $${!}; done;'"
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot; sleep 24h & wait $${!}; done;'"
     restart: unless-stopped
     depends_on:
       - nginx-https
@@ -108,12 +108,12 @@ services:
     profiles:
       - https
 
-  # Nginx reload scheduler - reloads nginx every 12h to pick up renewed certificates
+  # Nginx reload scheduler - reloads nginx daily to pick up renewed certificates
   nginx-reload:
     image: docker:cli
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do sleep 12h; docker kill --signal=HUP $$(docker ps -q -f name=nginx-https) 2>/dev/null || true; done;'"
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do sleep 24h; docker kill --signal=HUP $$(docker ps -q -f name=nginx-https) 2>/dev/null || true; done;'"
     restart: unless-stopped
     profiles:
       - https
