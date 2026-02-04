@@ -8,6 +8,10 @@
 data/*
 !data/ips/index.php
 !data/ips/ips4.php
+!data/ips/.gitkeep
+
+# Ignore SSL certificates in data/ssl
+data/ssl/*
 
 # Configuration folders (tracked)
 # These contain configuration files that should be versioned

@@ -81,8 +81,8 @@ SSL_ENABLED=false
 The stack uses these default database settings:
 
 - **Host**: `db`
-- **Database**: `ips4`
-- **User**: `ips4`
+- **Database**: `ips`
+- **User**: `ips`
 - **Password**: (set in `MYSQL_PASSWORD`)
 
 These are configured in the PHP container and don't need to be changed.
@@ -131,10 +131,10 @@ Follow the IPS4 installation wizard:
 1. **System Requirements**: Click "Continue"
 2. **Database Information**:
    - Database Server: `db`
-   - Database Name: `ips4`
-   - Database Username: `ips4`
+   - Database Name: `ips`
+   - Database Username: `ips`
    - Database Password: (your `MYSQL_PASSWORD`)
-   - Table Prefix: (leave empty or use `ips4_`)
+   - Table Prefix: (leave empty or use `ips_`)
 3. **Admin Account**: Create your admin credentials
 4. **Configuration**: Review and confirm settings
 
@@ -225,7 +225,7 @@ Then enable HTTPS as above.
 
 1. **Backup your data**:
 ```bash
-docker compose exec db mysqldump -u root -p${MYSQL_ROOT_PASSWORD} ips4 > backup.sql
+docker compose exec db mysqldump -u root -p${MYSQL_ROOT_PASSWORD} ips > backup.sql
 ```
 
 2. **Upload new IPS4 files** to `data/ips/`
@@ -267,7 +267,7 @@ Regular backups are essential:
 
 ```bash
 # Database backup
-docker compose exec db mysqldump -u root -p${MYSQL_ROOT_PASSWORD} ips4 > backup-$(date +%Y%m%d).sql
+docker compose exec db mysqldump -u root -p${MYSQL_ROOT_PASSWORD} ips > backup-$(date +%Y%m%d).sql
 
 # Files backup
 tar -czf ips-files-$(date +%Y%m%d).tar.gz data/ips/
