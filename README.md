@@ -10,6 +10,7 @@ A production-ready Docker stack for **Invision Community 4.x** featuring Nginx, 
 - 🛡️ **Security Hardened** - Security headers and best practices included
 - 🔄 **Health Checks** - Built-in health monitoring for all services
 - 📦 **Easy Setup** - Simple configuration with sensible defaults
+- 🔐 **Optional SSL/HTTPS** - Automatic Let's Encrypt certificates with Nginx Proxy Manager
 
 ## Requirements
 
@@ -22,7 +23,7 @@ A production-ready Docker stack for **Invision Community 4.x** featuring Nginx, 
 
 ### 1. Clone or Download
 
-Clone this repository or download the files to your server:
+Clone this repository or download files to your server:
 
 ```bash
 git clone <repository-url> ips4-docker-stack
@@ -31,17 +32,32 @@ cd ips4-docker-stack
 
 ### 2. Configure Environment Variables
 
-Edit the [`.env`](.env) file and set strong passwords:
+Edit [`.env`](.env) file and set strong passwords:
 
 ```bash
+# Database Configuration
 MYSQL_PASSWORD=your_strong_password_here
 MYSQL_ROOT_PASSWORD=your_strong_root_password_here
+
+# HTTP Port Configuration (Non-SSL mode)
 HTTP_PORT=8080
+
+# Reverse Proxy Configuration (SSL mode) - Optional
+USE_PROXY=false
+PROXY_HTTP_PORT=80
+PROXY_HTTPS_PORT=443
+PROXY_UI_PORT=81
+PROXY_EMAIL=admin@example.com
+PROXY_PASSWORD=changeme
+CLOUDFLARE_API_TOKEN=
+CLOUDFLARE_EMAIL=
 ```
+
+For SSL/HTTPS setup, see [SSL/HTTPS Setup](#sslhttps-setup-optional) section below.
 
 ### 3. Copy IPS4 Files
 
-Copy your licensed Invision Community 4 files to the data directory:
+Copy your licensed Invision Community 4 files to data directory:
 
 ```bash
 # Extract/copy your IPS4 files to:
@@ -71,7 +87,7 @@ http://your-server-ip:8080/
 
 ### 6. Run the Installer
 
-During the IPS4 installation, use these database settings:
+During IPS4 installation, use these database settings:
 
 | Setting | Value |
 |---------|-------|
@@ -89,11 +105,141 @@ After installation, enable Redis caching in AdminCP:
 3. Host: `redis`
 4. Port: `6379`
 
+## SSL/HTTPS Setup (Optional)
+
+For production deployment with automatic SSL certificates and HTTPS, use optional reverse proxy configuration with **Nginx Proxy Manager**.
+
+### Why Use a Proxy?
+
+- 🔒 **Automatic SSL Certificates** - Let's Encrypt with auto-renewal
+- 🎛️ **Web UI Management** - Easy-to-use interface for configuration
+- ☁️ **Cloudflare Support** - DNS challenge for wildcard certificates
+- 🔄 **Zero Downtime** - Seamless certificate renewal
+- 📦 **Simple Setup** - Configure ports in [`.env`](.env) file
+
+### Quick Setup with SSL
+
+1. **Configure Environment Variables:**
+
+Edit [`.env`](.env) file and set your proxy configuration:
+
+```bash
+# Set to true to use proxy mode
+USE_PROXY=true
+
+# Configure public ports
+PROXY_HTTP_PORT=80
+PROXY_HTTPS_PORT=443
+PROXY_UI_PORT=81
+
+# Proxy Manager credentials (CHANGE AFTER FIRST LOGIN!)
+PROXY_EMAIL=admin@example.com
+PROXY_PASSWORD=changeme
+
+# Cloudflare DNS Challenge (optional - for wildcard certificates)
+CLOUDFLARE_API_TOKEN=your_api_token_here
+CLOUDFLARE_EMAIL=your_cloudflare_email@example.com
+```
+
+2. **Start with proxy:**
+
+```bash
+docker compose -f docker-compose.proxy.yml up -d --build
+```
+
+3. **Access a Proxy Manager UI:**
+
+Open `http://your-server-ip:81` in your browser.
+
+4. **Default Login Credentials:**
+
+```
+Email:    admin@example.com
+Password: changeme
+```
+
+⚠️ **Important:** Change default password immediately after first login!
+
+5. **Add Your Domain:**
+
+1. Go to **Hosts → Proxy Hosts**
+2. Click **Add Proxy Host**
+3. Fill in:
+   - **Domain Names**: `your-domain.com` (and `www.your-domain.com`)
+   - **Scheme**: `http`
+   - **Forward Hostname**: `nginx` (the container name)
+   - **Forward Port**: `80`
+4. Click **Save**
+
+6. **Enable SSL:**
+
+1. In the same Proxy Host configuration, go to the **SSL** tab
+2. Select **Request a new SSL Certificate**
+3. Enable:
+   - ✅ Force SSL
+   - ✅ HTTP/2 Support
+   - ✅ HSTS Enabled
+4. For Cloudflare users, use **DNS Challenge**:
+   - Select **DNS Challenge**
+   - Choose **Cloudflare**
+   - Enter your Cloudflare API Token
+5. Click **Save**
+
+### Cloudflare DNS Challenge Setup
+
+For wildcard certificates (`*.your-domain.com`), use Cloudflare DNS challenge:
+
+1. **Get Cloudflare API Token:**
+   - Go to Cloudflare Dashboard → My Profile → API Tokens
+   - Create token with **Zone → DNS → Edit** permissions
+   - Copy the token
+
+2. **Configure in Proxy Manager:**
+   - In SSL tab, select **DNS Challenge**
+   - Choose **Cloudflare** as provider
+   - Paste your API Token
+   - Enter your Cloudflare email
+
+3. **Request Certificate:**
+   - Enter domain: `*.your-domain.com`
+   - Click **Save**
+
+### Accessing Your Forum
+
+After setup, access your forum at:
+
+```
+https://your-domain.com
+```
+
+### Proxy Manager Ports
+
+| Port | Purpose |
+|-------|---------|
+| 80    | HTTP (public) |
+| 443   | HTTPS (public) |
+| 81    | Management UI (internal - restrict access!) |
+
+### Switching Between Configurations
+
+- **Without SSL (HTTP only):** Use [`docker-compose.yml`](docker-compose.yml)
+- **With SSL (HTTPS):** Use [`docker-compose.proxy.yml`](docker-compose.proxy.yml)
+
+To switch:
+```bash
+# Stop current stack
+docker compose down
+
+# Start with SSL
+docker compose -f docker-compose.proxy.yml up -d --build
+```
+
 ## Project Structure
 
 ```
 ips4-docker-stack/
-├── docker-compose.yml       # Main Docker Compose configuration
+├── docker-compose.yml       # Main Docker Compose configuration (HTTP only)
+├── docker-compose.proxy.yml # Optional configuration with SSL/HTTPS
 ├── .env                     # Environment variables (passwords, ports)
 ├── .env.example             # Environment variables template
 ├── nginx/
@@ -111,6 +257,7 @@ ips4-docker-stack/
 │   ├── ips/                 # Your IPS4 files (mount this)
 │   ├── mysql/               # MySQL data (persistent)
 │   ├── redis/               # Redis data (persistent)
+│   ├── proxy/               # Proxy manager data (persistent)
 │   └── logs/
 │       └── nginx/           # Nginx logs (persistent)
 └── README.md                # This file
@@ -253,10 +400,11 @@ Reduce MySQL buffer pool size in [`mysql/my.cnf`](mysql/my.cnf) and PHP-FPM work
 ## Security Recommendations
 
 1. **Change Default Passwords** - Always use strong passwords in [`.env`](.env)
-2. **Use HTTPS** - Place behind a reverse proxy with SSL/TLS (e.g., Traefik, Nginx Proxy Manager)
-3. **Firewall** - Restrict access to port 8080
+2. **Use HTTPS** - Use [`docker-compose.proxy.yml`](docker-compose.proxy.yml) for automatic SSL certificates
+3. **Firewall** - Restrict access to ports 80/443 (public) and 81 (proxy UI - internal only!)
 4. **Regular Backups** - Set up automated backups
 5. **Update Regularly** - Keep Docker images updated
+6. **Proxy UI Security** - Change default Nginx Proxy Manager password immediately
 
 ## Production Deployment
 
@@ -285,6 +433,7 @@ All persistent data is stored in the [`./data/`](./data/) directory on your host
 - `./data/ips/` - IPS4 files, uploads, and configuration
 - `./data/mysql/` - MySQL database files
 - `./data/redis/` - Redis AOF file (cache)
+- `./data/proxy/` - Nginx Proxy Manager data and SSL certificates
 
 You can safely remove containers and images without losing your data.
 
@@ -304,7 +453,13 @@ docker compose ps
 
 ## Requirements Checker (Optional)
 
-For pre-installation verification, you can use the IPS4 requirements checker:
+A requirements checker is included in the setup guide. Access it at:
+
+```
+http://your-server-ip:8080/ips4.php
+```
+
+Or copy the official IPS4 requirements checker to `./data/ips/requirements.php`:
 
 1. Copy `requirements.php` to `./data/ips/`
 2. Visit `http://your-server-ip:8080/requirements.php`

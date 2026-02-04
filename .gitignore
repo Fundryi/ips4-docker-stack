@@ -4,15 +4,17 @@
 .env.*.local
 
 # Data directories (persistent data)
-# Keep .gitkeep files but ignore actual data
+# Ignore all data contents EXCEPT setup files
 data/*
-!data/*/.gitkeep
-data/ips/*
-!data/ips/.gitkeep
-!data/ips/index.php  # Keep the setup guide
-data/mysql/*
-data/redis/*
-data/logs/*
+!data/ips/index.php
+!data/ips/ips4.php
+
+# Configuration folders (tracked)
+# These contain configuration files that should be versioned
+mysql/
+nginx/
+php/
+redis/
 
 # Backup files
 *.backup

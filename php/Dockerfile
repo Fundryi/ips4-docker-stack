@@ -25,6 +25,10 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     opcache \
     bcmath
 
+# Install GMP extension (for Web Push Notifications)
+RUN apt-get update && apt-get install -y libgmp-dev \
+    && docker-php-ext-install gmp
+
 # Install Redis extension via PECL
 RUN pecl install redis && docker-php-ext-enable redis
 
