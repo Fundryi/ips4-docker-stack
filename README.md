@@ -93,6 +93,7 @@ After installation, enable Redis caching in AdminCP:
 ips4-docker-stack/
 ├── docker-compose.yml       # Main Docker Compose configuration
 ├── .env                     # Environment variables (passwords, ports)
+├── .env.example             # Environment variables template
 ├── nginx/
 │   └── default.conf         # Nginx configuration
 ├── php/
@@ -100,6 +101,7 @@ ips4-docker-stack/
 │   ├── php.ini              # PHP configuration
 │   └── www.conf             # PHP-FPM pool configuration
 ├── mysql/
+│   ├── Dockerfile           # MySQL 8.4 image definition
 │   └── my.cnf               # MySQL 8.4 configuration
 ├── redis/
 │   └── redis.conf           # Redis 7 configuration
@@ -131,6 +133,11 @@ Adjust MySQL memory usage in [`mysql/my.cnf`](mysql/my.cnf):
 | 16 GB      | 8G - 10G                               |
 | 32 GB      | 16G - 20G                              |
 | 64 GB      | 32G - 40G                              |
+
+**Note:** After modifying [`mysql/my.cnf`](mysql/my.cnf), rebuild the MySQL image:
+```bash
+docker compose up -d --build db
+```
 
 ### PHP-FPM Workers
 
@@ -223,6 +230,11 @@ docker compose ps db
 ```
 
 2. Check database credentials in [`.env`](.env)
+
+3. If MySQL fails to start due to configuration issues, rebuild the image:
+```bash
+docker compose up -d --build db
+```
 
 ### Permission Issues
 
