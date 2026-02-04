@@ -41,6 +41,45 @@ else
 fi
 echo ""
 
+# Check if certificate already exists and is valid for at least 30 days
+CERT_PATH="data/ssl/live/$DOMAIN/fullchain.pem"
+if [ -f "$CERT_PATH" ]; then
+    echo "==> Checking existing certificate..."
+    # Check if certificate expires in more than 30 days
+    if openssl x509 -checkend 2592000 -noout -in "$CERT_PATH" 2>/dev/null; then
+        EXPIRY_DATE=$(openssl x509 -enddate -noout -in "$CERT_PATH" 2>/dev/null | cut -d= -f2)
+        echo "    Certificate is still valid (expires: $EXPIRY_DATE)"
+        echo "    Skipping certificate request to avoid Let's Encrypt rate limits."
+        echo ""
+
+        # Still create symlinks and enable HTTPS in case they're missing
+        echo "==> Verifying certificate symlinks..."
+        cd data/ssl
+        ln -sf "live/$DOMAIN/fullchain.pem" fullchain.pem
+        ln -sf "live/$DOMAIN/privkey.pem" privkey.pem
+        cd ../..
+        echo "    Symlinks verified"
+
+        echo "==> Enabling HTTPS in .env..."
+        if [ -f .env ]; then
+            if grep -q "^COMPOSE_PROFILES=" .env; then
+                sed -i 's/^COMPOSE_PROFILES=.*/COMPOSE_PROFILES=https/' .env
+                echo "    Set COMPOSE_PROFILES=https"
+            else
+                echo "COMPOSE_PROFILES=https" >> .env
+                echo "    Added COMPOSE_PROFILES=https"
+            fi
+        fi
+
+        echo ""
+        echo "==> SSL setup complete! (using existing certificate)"
+        echo "    Start with: docker compose up -d"
+        exit 0
+    else
+        echo "    Certificate expires within 30 days, will renew..."
+    fi
+fi
+
 echo "==> Creating required directories..."
 mkdir -p data/ssl data/certbot/www data/certbot/logs certbot
 
@@ -91,8 +130,11 @@ else
 fi
 
 echo "==> Creating certificate symlinks..."
-ln -sf "live/$DOMAIN/fullchain.pem" data/ssl/fullchain.pem
-ln -sf "live/$DOMAIN/privkey.pem" data/ssl/privkey.pem
+# Create symlinks relative to the data/ssl directory
+cd data/ssl
+ln -sf "live/$DOMAIN/fullchain.pem" fullchain.pem
+ln -sf "live/$DOMAIN/privkey.pem" privkey.pem
+cd ../..
 
 echo "==> Enabling HTTPS in .env..."
 if [ -f .env ]; then
