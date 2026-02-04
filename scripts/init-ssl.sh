@@ -1,17 +1,35 @@
 #!/bin/bash
 # Initialize SSL certificates with Let's Encrypt
-# Usage: ./scripts/init-ssl.sh yourdomain.com your@email.com
+# Usage: ./scripts/init-ssl.sh [domain] [email]
+# If domain and email are not provided, they will be read from .env file
 
 set -e
 
-DOMAIN=${1:-}
-EMAIL=${2:-}
+# Try to read from .env file if it exists
+if [ -f .env ]; then
+    # Source DOMAIN and CERTBOT_EMAIL from .env file
+    export $(grep -v '^#' .env | grep -E '^(DOMAIN|CERTBOT_EMAIL)=' | xargs 2>/dev/null) || true
+fi
+
+# Use provided arguments or fall back to .env values
+DOMAIN=${1:-$DOMAIN}
+EMAIL=${2:-$CERTBOT_EMAIL}
 
 if [ -z "$DOMAIN" ] || [ -z "$EMAIL" ]; then
-    echo "Usage: $0 <domain> <email>"
+    echo "Error: Domain and email are required!"
+    echo ""
+    echo "Usage: $0 [domain] [email]"
     echo "Example: $0 example.com admin@example.com"
+    echo ""
+    echo "Alternatively, set DOMAIN and CERTBOT_EMAIL in your .env file:"
+    echo "  DOMAIN=example.com"
+    echo "  CERTBOT_EMAIL=admin@example.com"
     exit 1
 fi
+
+echo "==> Using domain: $DOMAIN"
+echo "==> Using email: $EMAIL"
+echo ""
 
 echo "==> Creating required directories..."
 mkdir -p data/ssl data/certbot/www data/certbot/logs

@@ -277,6 +277,12 @@ MYSQL_ROOT_PASSWORD=your_secure_root_password</code></pre>
                     <pre><code>docker compose up -d</code></pre>
                 </div>
                 <div class="step">
+                    <h3>Enable SSL (Optional)</h3>
+                    <p>Set <code>DOMAIN</code> and <code>CERTBOT_EMAIL</code> in <code>.env</code>, then run:</p>
+                    <pre><code>./scripts/init-ssl.sh</code></pre>
+                    <p>The script reads your domain from <code>.env</code> and sets up Let's Encrypt automatically.</p>
+                </div>
+                <div class="step">
                     <h3>Run Installer</h3>
                     <p>Open your browser and complete the IPS4 setup wizard.</p>
                     <table class="config-table">

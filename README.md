@@ -50,12 +50,30 @@ open http://localhost
 
 ### Automated Setup (Recommended)
 
+**Important:** Run these commands on the **host machine** (or Komodo periphery container), not inside the IPS4 containers. The script needs access to the project directory and runs `docker compose` commands.
+
 ```bash
-./scripts/init-ssl.sh yourdomain.com your@email.com
+# Set your domain and email in .env first:
+# DOMAIN=yourdomain.com
+# CERTBOT_EMAIL=your@email.com
+
+# Komodo users: stacks are typically in /etc/komodo/stacks/ips4/
+cd /etc/komodo/stacks/ips4/
+
+# Fix script permissions if needed
+chmod +x scripts/init-ssl.sh
+
+# Run SSL setup
+./scripts/init-ssl.sh
 docker compose up -d
 ```
 
-The script obtains your SSL certificate and enables HTTPS in `.env` automatically.
+The script reads `DOMAIN` and `CERTBOT_EMAIL` from your `.env` file, obtains your SSL certificate, and enables HTTPS automatically. You can also override with arguments: `./scripts/init-ssl.sh yourdomain.com your@email.com`
+
+**Find your project path:**
+```bash
+docker inspect ips4-nginx-1 --format '{{ index .Config.Labels "com.docker.compose.project.working_dir" }}'
+```
 
 ### Manual Setup
 
@@ -149,7 +167,8 @@ ips4-docker-stack/
 | Database connection failed | Check `docker compose ps db` and verify `.env` passwords |
 | SSL errors | Run `ls -la data/ssl/` to verify certificates exist |
 | Port in use | Change `HTTP_PORT` or `HTTPS_PORT` in `.env` |
-| Permission denied | Run `sudo chown -R 33:33 data/ips/` (Linux) |
+| Permission denied (IPS files) | Run `sudo chown -R 33:33 data/ips/` (Linux) |
+| Permission denied (scripts) | Run `chmod +x scripts/*.sh` |
 
 ## License
 
