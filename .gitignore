@@ -1,0 +1,47 @@
+# Environment variables (contains sensitive data)
+.env
+.env.local
+.env.*.local
+
+# Data directories (persistent data)
+# Keep .gitkeep files but ignore actual data
+data/*
+!data/*/.gitkeep
+data/ips/*
+!data/ips/.gitkeep
+data/mysql/*
+data/redis/*
+data/logs/*
+
+# Backup files
+*.backup
+*.sql
+*.tar.gz
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Docker files
+.dockerignore
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# IPS4 specific files (if accidentally copied)
+conf_global.php
+requirements.php
