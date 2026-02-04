@@ -23,10 +23,9 @@ server {
     add_header Content-Type text/plain;
   }
 
-  # Close connection without response for all other requests
-  # This is more secure than redirecting (doesn't reveal the real domain)
+  # Redirect all requests to the correct domain
   location / {
-    return 444;
+    return 301 https://${DOMAIN}$request_uri;
   }
 }
 
