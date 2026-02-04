@@ -92,13 +92,13 @@ if [ -f "$CERT_PATH" ] && [ "$FORCE" = false ]; then
         echo "    Use --force to request a new certificate anyway."
         echo ""
 
-        # Still create symlinks and enable HTTPS in case they're missing
-        echo "==> Verifying certificate symlinks..."
-        cd data/ssl
-        ln -sf "live/$DOMAIN/fullchain.pem" fullchain.pem
-        ln -sf "live/$DOMAIN/privkey.pem" privkey.pem
-        cd ../..
-        echo "    Symlinks verified"
+        # Copy certificate files (symlinks don't work well with Docker volume mounts)
+        echo "==> Copying certificate files..."
+        cp -L "data/ssl/live/$DOMAIN/fullchain.pem" data/ssl/fullchain.pem
+        cp -L "data/ssl/live/$DOMAIN/privkey.pem" data/ssl/privkey.pem
+        chmod 644 data/ssl/fullchain.pem
+        chmod 600 data/ssl/privkey.pem
+        echo "    Certificate files copied"
 
         echo "==> Enabling HTTPS in .env..."
         if [ -f .env ]; then
@@ -190,12 +190,13 @@ else
     docker compose --profile http down
 fi
 
-echo "==> Creating certificate symlinks..."
-# Create symlinks relative to the data/ssl directory
-cd data/ssl
-ln -sf "live/$DOMAIN/fullchain.pem" fullchain.pem
-ln -sf "live/$DOMAIN/privkey.pem" privkey.pem
-cd ../..
+echo "==> Copying certificate files..."
+# Copy actual files instead of symlinks (symlinks don't work well with Docker volume mounts)
+cp -L "data/ssl/live/$DOMAIN/fullchain.pem" data/ssl/fullchain.pem
+cp -L "data/ssl/live/$DOMAIN/privkey.pem" data/ssl/privkey.pem
+chmod 644 data/ssl/fullchain.pem
+chmod 600 data/ssl/privkey.pem
+echo "    Certificate files copied to data/ssl/"
 
 echo "==> Enabling HTTPS in .env..."
 if [ -f .env ]; then

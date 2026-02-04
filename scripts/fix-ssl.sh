@@ -6,6 +6,7 @@
 # - "No such authorization" errors
 # - Stale account registration without certificates
 # - Corrupt certbot state
+# - Broken symlinks (converts to copies for Docker compatibility)
 
 set -e
 
@@ -22,45 +23,46 @@ fi
 # Check if ssl directory exists
 if [ ! -d "data/ssl" ]; then
     echo "No SSL data directory found. Nothing to fix."
-    echo "Run ./scripts/init-ssl.sh to set up SSL."
+    echo "Run: bash scripts/init-ssl.sh"
     exit 0
 fi
 
-# Check if certificates actually exist
+# Check if certificates actually exist in live/
 if [ -d "data/ssl/live" ] && [ -n "$(ls -A data/ssl/live 2>/dev/null)" ]; then
     echo "==> Found existing certificates in data/ssl/live/"
     ls -la data/ssl/live/
     echo ""
 
-    # Check if symlinks exist and are valid
-    if [ -L "data/ssl/fullchain.pem" ] && [ -L "data/ssl/privkey.pem" ]; then
-        if [ -e "data/ssl/fullchain.pem" ] && [ -e "data/ssl/privkey.pem" ]; then
-            echo "==> Symlinks are valid. SSL appears to be working."
-            echo "    If you're still having issues, try: docker compose down && docker compose up -d"
-            exit 0
-        else
-            echo "==> Symlinks exist but are broken. Will fix them."
-        fi
-    fi
-
-    # Fix symlinks for existing certificates
-    echo "==> Fixing certificate symlinks..."
-    cd data/ssl
-    for domain_dir in live/*/; do
+    # Find the domain directory
+    for domain_dir in data/ssl/live/*/; do
         if [ -d "$domain_dir" ]; then
             domain=$(basename "$domain_dir")
-            echo "    Found certificate for: $domain"
-            ln -sf "live/$domain/fullchain.pem" fullchain.pem
-            ln -sf "live/$domain/privkey.pem" privkey.pem
-            echo "    Symlinks created."
+            echo "==> Found certificate for: $domain"
+
+            # Check if the source files exist (following symlinks)
+            if [ -e "data/ssl/live/$domain/fullchain.pem" ] && [ -e "data/ssl/live/$domain/privkey.pem" ]; then
+                echo "==> Copying certificate files (fixes Docker volume mount issues)..."
+                # Use cp -L to follow symlinks and copy actual content
+                cp -L "data/ssl/live/$domain/fullchain.pem" data/ssl/fullchain.pem
+                cp -L "data/ssl/live/$domain/privkey.pem" data/ssl/privkey.pem
+                chmod 644 data/ssl/fullchain.pem
+                chmod 600 data/ssl/privkey.pem
+                echo "    Certificate files copied to data/ssl/"
+                echo ""
+                echo "==> SSL fixed! Restart the stack:"
+                echo "    docker compose down && docker compose up -d"
+                exit 0
+            else
+                echo "    Warning: Certificate files in live/$domain/ are broken"
+            fi
         fi
     done
-    cd ../..
 
     echo ""
-    echo "==> Symlinks fixed! Try starting the stack:"
-    echo "    docker compose up -d"
-    exit 0
+    echo "==> Certificate directories exist but files are missing/broken."
+    echo "    You may need to request a new certificate:"
+    echo "    bash scripts/init-ssl.sh --force"
+    exit 1
 fi
 
 # No certificates exist - check for stale state
@@ -76,6 +78,18 @@ if [ -d "data/ssl/renewal" ] && [ -n "$(ls -A data/ssl/renewal 2>/dev/null)" ]; 
     STALE_STATE=true
 fi
 
+# Also clean up any directory that should be a file
+if [ -d "certbot/cloudflare.ini" ]; then
+    echo "    Found cloudflare.ini as directory (should be file)"
+    rm -rf "certbot/cloudflare.ini"
+    STALE_STATE=true
+fi
+if [ -d "data/ssl/cloudflare.ini" ]; then
+    echo "    Found data/ssl/cloudflare.ini as directory (should be file)"
+    rm -rf "data/ssl/cloudflare.ini"
+    STALE_STATE=true
+fi
+
 if [ "$STALE_STATE" = true ]; then
     echo ""
     echo "==> Cleaning up stale certbot state..."
@@ -88,10 +102,10 @@ if [ "$STALE_STATE" = true ]; then
     echo "    Cleanup complete."
     echo ""
     echo "==> Now run the SSL initialization script:"
-    echo "    ./scripts/init-ssl.sh"
+    echo "    bash scripts/init-ssl.sh"
 else
     echo "    No stale state found."
     echo ""
     echo "==> To set up SSL, run:"
-    echo "    ./scripts/init-ssl.sh"
+    echo "    bash scripts/init-ssl.sh"
 fi
