@@ -1,14 +1,46 @@
-# HTTP -> HTTPS redirect with Let's Encrypt ACME challenge support
+# Default server block - reject/redirect requests not using the correct domain
+# This catches requests via IP address or wrong hostname
 server {
-  listen 80;
+  listen 80 default_server;
+  listen 443 ssl default_server;
+  http2 on;
   server_name _;
 
-  # Let's Encrypt ACME challenge (served from certbot webroot)
+  # SSL Configuration (needed even for default server to handle HTTPS requests)
+  ssl_certificate /etc/nginx/ssl/fullchain.pem;
+  ssl_certificate_key /etc/nginx/ssl/privkey.pem;
+  ssl_protocols TLSv1.2 TLSv1.3;
+
+  # Let's Encrypt ACME challenge (needs to work on any hostname)
   location /.well-known/acme-challenge/ {
     root /var/www/certbot;
   }
 
-  # Health check endpoint (needed for Docker healthcheck on port 80)
+  # Health check endpoint (needed for Docker healthcheck)
+  location /health {
+    access_log off;
+    return 200 "healthy\n";
+    add_header Content-Type text/plain;
+  }
+
+  # Close connection without response for all other requests
+  # This is more secure than redirecting (doesn't reveal the real domain)
+  location / {
+    return 444;
+  }
+}
+
+# HTTP -> HTTPS redirect for the correct domain
+server {
+  listen 80;
+  server_name ${DOMAIN};
+
+  # Let's Encrypt ACME challenge
+  location /.well-known/acme-challenge/ {
+    root /var/www/certbot;
+  }
+
+  # Health check endpoint
   location /health {
     access_log off;
     return 200 "healthy\n";
@@ -21,11 +53,11 @@ server {
   }
 }
 
-# HTTPS Server
+# HTTPS Server - only responds to the correct domain
 server {
   listen 443 ssl;
   http2 on;
-  server_name _;
+  server_name ${DOMAIN};
   root /var/www/html;
   index index.php index.html;
 
