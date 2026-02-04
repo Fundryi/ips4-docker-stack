@@ -172,10 +172,11 @@ ips4-docker-stack/
 |-------|----------|
 | Default nginx page | Ensure IPS4 files are in `data/ips/` |
 | Database connection failed | Check `docker compose ps db` and verify `.env` passwords |
-| SSL errors | Run `ls -la data/ssl/` to verify certificates exist |
+| SSL errors | Run `bash scripts/fix-ssl.sh` to diagnose and fix |
+| SSL "No such authorization" | Run `bash scripts/fix-ssl.sh` then `bash scripts/init-ssl.sh` |
 | Port in use | Change `HTTP_PORT` or `HTTPS_PORT` in `.env` |
 | Permission denied (IPS files) | Run `sudo chown -R 33:33 data/ips/` (Linux) |
-| Permission denied (scripts) | Run `chmod +x scripts/*.sh` |
+| Permission denied (scripts) | Run `chmod +x scripts/*.sh` or use `bash scripts/...` |
 
 ## License
 

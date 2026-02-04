@@ -83,6 +83,17 @@ fi
 echo "==> Creating required directories..."
 mkdir -p data/ssl data/certbot/www data/certbot/logs certbot
 
+# Check for stale certbot state (accounts exist but no certificates)
+# This can cause "No such authorization" errors
+if [ -d "data/ssl/accounts" ] && [ ! -d "data/ssl/live" ]; then
+    echo "==> Detected stale certbot state, cleaning up..."
+    rm -rf data/ssl/accounts
+    rm -rf data/ssl/renewal
+    rm -rf data/ssl/renewal-hooks
+    rm -f data/ssl/cloudflare.ini
+    echo "    Cleanup complete."
+fi
+
 echo "==> Stopping any running containers to free ports..."
 docker compose down 2>/dev/null || true
 
