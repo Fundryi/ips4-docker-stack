@@ -20,41 +20,53 @@ if [ ! -f "compose.yaml" ] && [ ! -f "docker-compose.yml" ]; then
     exit 1
 fi
 
-# Check if ssl directory exists
-if [ ! -d "data/ssl" ]; then
-    echo "No SSL data directory found. Nothing to fix."
+# Get the project name for the Docker volume (used by compose)
+PROJECT_NAME=$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g')
+VOLUME_NAME="${PROJECT_NAME}_ssl-certs"
+
+echo "==> Using Docker volume: $VOLUME_NAME"
+echo ""
+
+# Check if the volume exists
+if ! docker volume inspect "$VOLUME_NAME" >/dev/null 2>&1; then
+    echo "No SSL volume found ($VOLUME_NAME). Nothing to fix."
     echo "Run: bash scripts/init-ssl.sh"
     exit 0
 fi
 
-# Check if certificates actually exist in live/
-if [ -d "data/ssl/live" ] && [ -n "$(ls -A data/ssl/live 2>/dev/null)" ]; then
-    echo "==> Found existing certificates in data/ssl/live/"
-    ls -la data/ssl/live/
+# Check if certificates actually exist in the volume
+echo "==> Checking for certificates in volume..."
+LIVE_DIRS=$(docker run --rm -v "$VOLUME_NAME:/etc/letsencrypt:ro" alpine sh -c \
+    "ls -d /etc/letsencrypt/live/*/ 2>/dev/null || true")
+
+if [ -n "$LIVE_DIRS" ]; then
+    echo "==> Found certificate directories in volume"
+    docker run --rm -v "$VOLUME_NAME:/etc/letsencrypt:ro" alpine ls -la /etc/letsencrypt/live/
     echo ""
 
-    # Find the domain directory
-    for domain_dir in data/ssl/live/*/; do
-        if [ -d "$domain_dir" ]; then
-            domain=$(basename "$domain_dir")
-            echo "==> Found certificate for: $domain"
+    # Find the domain directory and copy certificates
+    for domain in $(docker run --rm -v "$VOLUME_NAME:/etc/letsencrypt:ro" alpine sh -c \
+        "ls /etc/letsencrypt/live/ 2>/dev/null | grep -v README"); do
+        echo "==> Found certificate for: $domain"
 
-            # Check if the source files exist (following symlinks)
-            if [ -e "data/ssl/live/$domain/fullchain.pem" ] && [ -e "data/ssl/live/$domain/privkey.pem" ]; then
-                echo "==> Copying certificate files (fixes Docker volume mount issues)..."
-                # Use cp -L to follow symlinks and copy actual content
-                cp -L "data/ssl/live/$domain/fullchain.pem" data/ssl/fullchain.pem
-                cp -L "data/ssl/live/$domain/privkey.pem" data/ssl/privkey.pem
-                chmod 644 data/ssl/fullchain.pem
-                chmod 600 data/ssl/privkey.pem
-                echo "    Certificate files copied to data/ssl/"
-                echo ""
-                echo "==> SSL fixed! Restart the stack:"
-                echo "    docker compose down && docker compose up -d"
-                exit 0
-            else
-                echo "    Warning: Certificate files in live/$domain/ are broken"
-            fi
+        # Check if the source files exist (following symlinks)
+        CERT_EXISTS=$(docker run --rm -v "$VOLUME_NAME:/etc/letsencrypt:ro" alpine sh -c \
+            "[ -e /etc/letsencrypt/live/$domain/fullchain.pem ] && [ -e /etc/letsencrypt/live/$domain/privkey.pem ] && echo 'yes' || echo 'no'")
+
+        if [ "$CERT_EXISTS" = "yes" ]; then
+            echo "==> Copying certificate files within volume..."
+            docker run --rm -v "$VOLUME_NAME:/etc/letsencrypt" alpine sh -c \
+                "cp -L /etc/letsencrypt/live/$domain/fullchain.pem /etc/letsencrypt/fullchain.pem && \
+                 cp -L /etc/letsencrypt/live/$domain/privkey.pem /etc/letsencrypt/privkey.pem && \
+                 chmod 644 /etc/letsencrypt/fullchain.pem && \
+                 chmod 600 /etc/letsencrypt/privkey.pem"
+            echo "    Certificate files copied"
+            echo ""
+            echo "==> SSL fixed! Restart the stack:"
+            echo "    docker compose down && docker compose up -d"
+            exit 0
+        else
+            echo "    Warning: Certificate files in live/$domain/ are broken"
         fi
     done
 
@@ -68,37 +80,21 @@ fi
 # No certificates exist - check for stale state
 echo "==> No certificates found. Checking for stale certbot state..."
 
-STALE_STATE=false
-if [ -d "data/ssl/accounts" ]; then
-    echo "    Found stale accounts directory"
-    STALE_STATE=true
-fi
-if [ -d "data/ssl/renewal" ] && [ -n "$(ls -A data/ssl/renewal 2>/dev/null)" ]; then
-    echo "    Found stale renewal configs"
-    STALE_STATE=true
-fi
+STALE_STATE=$(docker run --rm -v "$VOLUME_NAME:/etc/letsencrypt:ro" alpine sh -c \
+    "[ -d /etc/letsencrypt/accounts ] && echo 'accounts' || true; \
+     [ -d /etc/letsencrypt/renewal ] && ls /etc/letsencrypt/renewal/ 2>/dev/null | head -1 && echo 'renewal' || true")
 
-# Also clean up any directory that should be a file
-if [ -d "certbot/cloudflare.ini" ]; then
-    echo "    Found cloudflare.ini as directory (should be file)"
-    rm -rf "certbot/cloudflare.ini"
-    STALE_STATE=true
-fi
-if [ -d "data/ssl/cloudflare.ini" ]; then
-    echo "    Found data/ssl/cloudflare.ini as directory (should be file)"
-    rm -rf "data/ssl/cloudflare.ini"
-    STALE_STATE=true
-fi
-
-if [ "$STALE_STATE" = true ]; then
+if [ -n "$STALE_STATE" ]; then
+    echo "    Found stale certbot state"
     echo ""
-    echo "==> Cleaning up stale certbot state..."
-    rm -rf data/ssl/accounts
-    rm -rf data/ssl/renewal
-    rm -rf data/ssl/renewal-hooks
-    rm -f data/ssl/cloudflare.ini
-    rm -f data/ssl/fullchain.pem
-    rm -f data/ssl/privkey.pem
+    echo "==> Cleaning up stale certbot state in volume..."
+    docker run --rm -v "$VOLUME_NAME:/etc/letsencrypt" alpine sh -c \
+        "rm -rf /etc/letsencrypt/accounts \
+                /etc/letsencrypt/renewal \
+                /etc/letsencrypt/renewal-hooks \
+                /etc/letsencrypt/cloudflare.ini \
+                /etc/letsencrypt/fullchain.pem \
+                /etc/letsencrypt/privkey.pem 2>/dev/null || true"
     echo "    Cleanup complete."
     echo ""
     echo "==> Now run the SSL initialization script:"
