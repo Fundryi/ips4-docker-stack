@@ -93,13 +93,17 @@ services:
       - https
 
   # Certbot for automatic SSL renewal (enable with --profile https)
+  # Uses DNS challenge if CLOUDFLARE_API_TOKEN is set, otherwise HTTP challenge
   certbot:
-    image: certbot/certbot:latest
+    image: certbot/dns-cloudflare:latest
+    environment:
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
     volumes:
       - ./data/ssl:/etc/letsencrypt
       - ./data/certbot/www:/var/www/certbot
       - ./data/certbot/logs:/var/log/letsencrypt
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot; sleep 24h & wait $${!}; done;'"
+      - ./certbot/cloudflare.ini:/etc/letsencrypt/cloudflare.ini:ro
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do if [ -n \"$$CLOUDFLARE_API_TOKEN\" ]; then certbot renew --dns-cloudflare --dns-cloudflare-credentials /etc/letsencrypt/cloudflare.ini; else certbot renew --webroot -w /var/www/certbot; fi; sleep 24h & wait $${!}; done;'"
     restart: unless-stopped
     depends_on:
       - nginx-https

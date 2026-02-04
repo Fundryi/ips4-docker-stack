@@ -1,0 +1,3 @@
+# Cloudflare API token for DNS challenge
+# Copy to cloudflare.ini and set your token, or let init-ssl.sh generate it
+dns_cloudflare_api_token = YOUR_CLOUDFLARE_API_TOKEN

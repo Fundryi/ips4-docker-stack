@@ -45,59 +45,66 @@ open http://localhost
 | `COMPOSE_PROFILES` | - | Set to `https` to enable SSL |
 | `DOMAIN` | `example.com` | Domain for SSL certificate |
 | `CERTBOT_EMAIL` | - | Email for Let's Encrypt notifications |
+| `CLOUDFLARE_API_TOKEN` | - | Cloudflare API token for DNS challenge (optional) |
 
 ## SSL/HTTPS Setup
 
-### Automated Setup (Recommended)
+The stack supports two methods for obtaining SSL certificates:
+- **DNS Challenge (Cloudflare)** - Works with local/internal domains, no port 80 needed
+- **HTTP Challenge** - Traditional method, requires port 80 accessible from internet
 
-**Important:** Run these commands on the **host machine** (or Komodo periphery container), not inside the IPS4 containers. The script needs access to the project directory and runs `docker compose` commands.
+### DNS Challenge Setup (Recommended)
 
-```bash
-# Set your domain and email in .env first:
-# DOMAIN=yourdomain.com
-# CERTBOT_EMAIL=your@email.com
+Best for local domains, internal networks, or when port 80 isn't available.
 
-# Komodo users: stacks are typically in /etc/komodo/stacks/ips4/
-cd /etc/komodo/stacks/ips4/
+1. **Get a Cloudflare API Token:**
+   - Go to [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens)
+   - Create a token with **Zone:DNS:Edit** permission for your domain
 
-# Fix script permissions if needed
-chmod +x scripts/init-ssl.sh
+2. **Configure `.env`:**
+   ```bash
+   DOMAIN=yourdomain.com
+   CERTBOT_EMAIL=your@email.com
+   CLOUDFLARE_API_TOKEN=your_cloudflare_api_token
+   ```
 
-# Run SSL setup
-./scripts/init-ssl.sh
-docker compose up -d
-```
+3. **Run the SSL script:**
+   ```bash
+   # Komodo users: stacks are typically in /etc/komodo/stacks/ips4/
+   cd /etc/komodo/stacks/ips4/
 
-The script reads `DOMAIN` and `CERTBOT_EMAIL` from your `.env` file, obtains your SSL certificate, and enables HTTPS automatically. You can also override with arguments: `./scripts/init-ssl.sh yourdomain.com your@email.com`
+   chmod +x scripts/init-ssl.sh
+   ./scripts/init-ssl.sh
+   docker compose up -d
+   ```
+
+### HTTP Challenge Setup
+
+Traditional method - requires port 80 to be publicly accessible.
+
+1. **Configure `.env`:**
+   ```bash
+   DOMAIN=yourdomain.com
+   CERTBOT_EMAIL=your@email.com
+   # Leave CLOUDFLARE_API_TOKEN empty or remove it
+   ```
+
+2. **Run the SSL script:**
+   ```bash
+   cd /etc/komodo/stacks/ips4/
+
+   chmod +x scripts/init-ssl.sh
+   ./scripts/init-ssl.sh
+   docker compose up -d
+   ```
+
+### Important Notes
+
+**Run commands on the host machine** (or Komodo periphery container), not inside the IPS4 containers. The script needs access to the project directory and runs `docker compose` commands.
 
 **Find your project path:**
 ```bash
 docker inspect ips4-nginx-1 --format '{{ index .Config.Labels "com.docker.compose.project.working_dir" }}'
-```
-
-### Manual Setup
-
-```bash
-# 1. Create directories
-mkdir -p data/ssl data/certbot/www data/certbot/logs
-
-# 2. Get certificate
-docker compose up -d nginx
-docker compose run --rm certbot certonly --webroot \
-  --webroot-path=/var/www/certbot \
-  --email your@email.com --agree-tos --no-eff-email \
-  -d yourdomain.com
-docker compose down
-
-# 3. Link certificates
-ln -sf live/yourdomain.com/fullchain.pem data/ssl/fullchain.pem
-ln -sf live/yourdomain.com/privkey.pem data/ssl/privkey.pem
-
-# 4. Enable HTTPS in .env
-# Uncomment: COMPOSE_PROFILES=https
-
-# 5. Start
-docker compose up -d
 ```
 
 ### Auto-Renewal
