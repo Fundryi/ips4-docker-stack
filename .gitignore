@@ -9,6 +9,7 @@ data/*
 !data/*/.gitkeep
 data/ips/*
 !data/ips/.gitkeep
+!data/ips/index.php  # Keep the setup guide
 data/mysql/*
 data/redis/*
 data/logs/*

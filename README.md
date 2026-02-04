@@ -53,6 +53,8 @@ Verify you have:
 ./data/ips/index.php
 ```
 
+**Note:** A setup guide page is included at [`data/ips/index.php`](data/ips/index.php) that displays installation instructions when you access the forum before IPS4 is installed. Replace this file with your actual IPS4 files.
+
 ### 4. Start the Stack
 
 ```bash
