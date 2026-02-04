@@ -13,12 +13,6 @@ data/*
 # Ignore SSL certificates in data/ssl
 data/ssl/*
 
-# Configuration folders (tracked)
-# These contain configuration files that should be versioned
-mysql/
-nginx/
-php/
-redis/
 
 # Backup files
 *.backup
