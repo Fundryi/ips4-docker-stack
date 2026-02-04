@@ -7,7 +7,7 @@ Production-ready Docker Compose setup for Invision Community (IPS4) with MySQL 8
 - **Full IPS4 Support** - PHP 8.1 with all required extensions
 - **High Performance** - Redis caching, OPcache, optimized MySQL
 - **Automatic SSL** - Let's Encrypt with auto-renewal via Certbot
-- **Easy Deployment** - Single command startup with Docker Compose profiles
+- **Easy Deployment** - Single command startup, SSL toggle via `.env`
 
 ## Quick Start
 
@@ -16,7 +16,7 @@ Production-ready Docker Compose setup for Invision Community (IPS4) with MySQL 8
 cp .env.example .env
 nano .env  # Set your passwords
 
-# 2. Start (HTTP)
+# 2. Start
 docker compose up -d
 
 # 3. Access
@@ -42,6 +42,7 @@ open http://localhost
 | `MYSQL_ROOT_PASSWORD` | - | MySQL root password (required) |
 | `HTTP_PORT` | `80` | HTTP port |
 | `HTTPS_PORT` | `443` | HTTPS port |
+| `COMPOSE_PROFILES` | - | Set to `https` to enable SSL |
 | `DOMAIN` | `example.com` | Domain for SSL certificate |
 | `CERTBOT_EMAIL` | - | Email for Let's Encrypt notifications |
 
@@ -50,10 +51,11 @@ open http://localhost
 ### Automated Setup (Recommended)
 
 ```bash
-chmod +x scripts/init-ssl.sh
 ./scripts/init-ssl.sh yourdomain.com your@email.com
-docker compose --profile https up -d
+docker compose up -d
 ```
+
+The script obtains your SSL certificate and enables HTTPS in `.env` automatically.
 
 ### Manual Setup
 
@@ -73,13 +75,29 @@ docker compose down
 ln -sf live/yourdomain.com/fullchain.pem data/ssl/fullchain.pem
 ln -sf live/yourdomain.com/privkey.pem data/ssl/privkey.pem
 
-# 4. Start with HTTPS
-docker compose --profile https up -d
+# 4. Enable HTTPS in .env
+# Uncomment: COMPOSE_PROFILES=https
+
+# 5. Start
+docker compose up -d
 ```
 
 ### Auto-Renewal
 
-With the `https` profile, certificates are automatically renewed daily. No cron jobs needed.
+Certificates are automatically renewed daily. No cron jobs needed.
+
+### Toggle HTTP/HTTPS
+
+Edit `.env`:
+```bash
+# HTTP only (default)
+#COMPOSE_PROFILES=https
+
+# HTTPS enabled
+COMPOSE_PROFILES=https
+```
+
+Then restart: `docker compose up -d`
 
 ## IPS4 Installation
 
@@ -98,11 +116,10 @@ With the `https` profile, certificates are automatically renewed daily. No cron 
 ## Commands
 
 ```bash
-docker compose up -d                    # Start (HTTP)
-docker compose --profile https up -d    # Start (HTTPS)
-docker compose down                     # Stop
-docker compose logs -f [service]        # View logs
-docker compose restart [service]        # Restart service
+docker compose up -d                # Start
+docker compose down                 # Stop
+docker compose logs -f [service]    # View logs
+docker compose restart [service]    # Restart service
 docker compose exec db mysqldump -u root -p ips > backup.sql  # Backup DB
 ```
 

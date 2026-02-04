@@ -27,8 +27,6 @@ Edit `.env` with secure passwords:
 ```bash
 MYSQL_PASSWORD=your_secure_password
 MYSQL_ROOT_PASSWORD=your_secure_root_password
-HTTP_PORT=80
-HTTPS_PORT=443
 ```
 
 ## Step 3: Add IPS4 Files
@@ -46,11 +44,7 @@ data/ips/
 ## Step 4: Start Services
 
 ```bash
-# HTTP only
 docker compose up -d
-
-# With HTTPS (after SSL setup)
-docker compose --profile https up -d
 ```
 
 Verify all services are running:
@@ -87,12 +81,14 @@ In AdminCP, go to **System > Advanced Configuration > Caching**:
 
 ## Step 7: SSL Setup (Production)
 
-### Option A: Automated Script
+### Option A: Automated Script (Recommended)
 
 ```bash
 ./scripts/init-ssl.sh yourdomain.com your@email.com
-docker compose --profile https up -d
+docker compose up -d
 ```
+
+The script obtains certificates and enables HTTPS in `.env` automatically.
 
 ### Option B: Manual
 
@@ -108,18 +104,35 @@ docker compose run --rm certbot certonly --webroot \
 docker compose down
 ln -sf live/yourdomain.com/fullchain.pem data/ssl/fullchain.pem
 ln -sf live/yourdomain.com/privkey.pem data/ssl/privkey.pem
-docker compose --profile https up -d
+
+# Enable HTTPS in .env (uncomment COMPOSE_PROFILES=https)
+docker compose up -d
 ```
 
-### Option C: Self-Signed (Testing)
+### Option C: Self-Signed (Testing Only)
 
 ```bash
 mkdir -p data/ssl
 openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
   -keyout data/ssl/privkey.pem -out data/ssl/fullchain.pem \
   -subj "/CN=localhost"
-docker compose --profile https up -d
+
+# Enable HTTPS in .env (uncomment COMPOSE_PROFILES=https)
+docker compose up -d
 ```
+
+### Toggle HTTP/HTTPS
+
+Edit `.env`:
+```bash
+# HTTP only (default)
+#COMPOSE_PROFILES=https
+
+# HTTPS enabled
+COMPOSE_PROFILES=https
+```
+
+Then: `docker compose up -d`
 
 ## Maintenance
 
