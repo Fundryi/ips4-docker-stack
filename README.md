@@ -10,7 +10,7 @@ A production-ready Docker stack for **Invision Community 4.x** featuring Nginx, 
 - 🛡️ **Security Hardened** - Security headers and best practices included
 - 🔄 **Health Checks** - Built-in health monitoring for all services
 - 📦 **Easy Setup** - Simple configuration with sensible defaults
-- 🔐 **Optional SSL/HTTPS** - Automatic Let's Encrypt certificates with Nginx Proxy Manager
+- 🔐 **SSL/HTTPS Support** - Nginx handles SSL directly with your certificates
 
 ## Requirements
 
@@ -35,29 +35,14 @@ cd ips4-docker-stack
 Edit [`.env`](.env) file and set strong passwords:
 
 ```bash
-# Docker Compose Profiles
-# Set to "proxy" to enable reverse proxy with SSL/HTTPS
-# Leave empty for HTTP only mode
-COMPOSE_PROFILES=
-
 # Database Configuration
 MYSQL_PASSWORD=your_strong_password_here
 MYSQL_ROOT_PASSWORD=your_strong_root_password_here
 
-# HTTP Port Configuration
-HTTP_PORT=8080
-
-# Reverse Proxy Configuration (Optional)
-PROXY_HTTP_PORT=80
-PROXY_HTTPS_PORT=443
-PROXY_UI_PORT=81
-PROXY_EMAIL=admin@example.com
-PROXY_PASSWORD=changeme
-CLOUDFLARE_API_TOKEN=
-CLOUDFLARE_EMAIL=
+# Port Configuration
+HTTP_PORT=80
+HTTPS_PORT=443
 ```
-
-For SSL/HTTPS setup, see [SSL/HTTPS Setup](#sslhttps-setup-optional) section below.
 
 ### 3. Copy IPS4 Files
 
@@ -83,11 +68,17 @@ docker compose up -d --build
 
 ### 5. Access Your Forum
 
-Open your browser and navigate to:
+**HTTP (works without SSL):**
+```
+http://your-server-ip/
+```
 
+**HTTPS (works when SSL certificates are present):**
 ```
-http://your-server-ip:8080/
+https://your-server-ip:443/
 ```
+
+**Note:** The stack starts without SSL certificates. Add certificates to `./data/ssl/` to enable HTTPS.
 
 ### 6. Run the Installer
 
@@ -111,143 +102,74 @@ After installation, enable Redis caching in AdminCP:
 
 ## SSL/HTTPS Setup (Optional)
 
-For production deployment with automatic SSL certificates and HTTPS, use the reverse proxy service with **Nginx Proxy Manager**.
+Nginx handles SSL directly. SSL is optional - the stack works without certificates.
 
-### Why Use a Proxy?
+**Without SSL:** Stack starts with HTTP only (port80)
+**With SSL:** Place certificates in `./data/ssl/` to enable HTTPS (port443)
 
-- 🔒 **Automatic SSL Certificates** - Let's Encrypt with auto-renewal
-- 🎛️ **Web UI Management** - Easy-to-use interface for configuration
-- ☁️ **Cloudflare Support** - DNS challenge for wildcard certificates
-- 🔄 **Zero Downtime** - Seamless certificate renewal
-- 📦 **Simple Setup** - Configure ports in [`.env`](.env) file
+### Getting SSL Certificates (Optional)
 
-### Quick Setup with SSL
+#### Option 1: Let's Encrypt (Recommended)
 
-1. **Configure Environment Variables:**
+1. **Install certbot on your host:**
+```bash
+# Ubuntu/Debian
+sudo apt update && sudo apt install certbot
 
-Edit [`.env`](.env) file and set your proxy configuration:
+# CentOS/RHEL
+sudo yum install certbot
+```
+
+2. **Generate certificates:**
+```bash
+sudo certbot certonly --webroot -w /var/www/html -d yourdomain.com -d www.yourdomain.com
+```
+
+3. **Copy certificates to project:**
+```bash
+sudo cp /etc/letsencrypt/live/yourdomain.com/fullchain.pem ./data/ssl/
+sudo cp /etc/letsencrypt/live/yourdomain.com/privkey.pem ./data/ssl/
+sudo chown 33:33 ./data/ssl/*.pem
+```
+
+#### Option 2: Commercial SSL Certificates
+
+1. Purchase SSL certificate from a provider
+2. Download certificate files (fullchain.pem and privkey.pem)
+3. Place them in `./data/ssl/`:
+   - `fullchain.pem` - Certificate + intermediate chain
+   - `privkey.pem` - Private key
+
+### Certificate Renewal
+
+Let's Encrypt certificates need to be renewed. Set up auto-renewal:
 
 ```bash
-# Enable the reverse proxy
-COMPOSE_PROFILES=proxy
+# Test renewal
+sudo certbot renew --dry-run
 
-# Configure public ports
-PROXY_HTTP_PORT=80
-PROXY_HTTPS_PORT=443
-PROXY_UI_PORT=81
-
-# Proxy Manager credentials (CHANGE AFTER FIRST LOGIN!)
-PROXY_EMAIL=admin@example.com
-PROXY_PASSWORD=changeme
-
-# Cloudflare DNS Challenge (optional - for wildcard certificates)
-CLOUDFLARE_API_TOKEN=your_api_token_here
-CLOUDFLARE_EMAIL=your_cloudflare_email@example.com
+# Set up auto-renewal (cron job)
+sudo crontab -e
+# Add this line:
+0 0,12 * * * certbot renew --quiet --post-hook "cp /etc/letsencrypt/live/yourdomain.com/fullchain.pem /path/to/ips4-docker-stack/data/ssl/ && cp /etc/letsencrypt/live/yourdomain.com/privkey.pem /path/to/ips4-docker-stack/data/ssl/ && chown 33:33 /path/to/ips4-docker-stack/data/ssl/*.pem"
 ```
 
-2. **Start the stack:**
-
-```bash
-docker compose up -d --build
-```
-
-The proxy service will automatically start because `COMPOSE_PROFILES=proxy` is set in your `.env` file.
-
-3. **Access a Proxy Manager UI:**
-
-Open `http://your-server-ip:81` in your browser.
-
-4. **Default Login Credentials:**
-
-```
-Email:    admin@example.com
-Password: changeme
-```
-
-⚠️ **Important:** Change default password immediately after first login!
-
-5. **Add Your Domain:**
-
-1. Go to **Hosts → Proxy Hosts**
-2. Click **Add Proxy Host**
-3. Fill in:
-   - **Domain Names**: `your-domain.com` (and `www.your-domain.com`)
-   - **Scheme**: `http`
-   - **Forward Hostname**: `nginx` (the container name)
-   - **Forward Port**: `80`
-4. Click **Save**
-
-6. **Enable SSL:**
-
-1. In the same Proxy Host configuration, go to the **SSL** tab
-2. Select **Request a new SSL Certificate**
-3. Enable:
-   - ✅ Force SSL
-   - ✅ HTTP/2 Support
-   - ✅ HSTS Enabled
-4. For Cloudflare users, use **DNS Challenge**:
-   - Select **DNS Challenge**
-   - Choose **Cloudflare**
-   - Enter your Cloudflare API Token
-5. Click **Save**
-
-### Cloudflare DNS Challenge Setup
-
-For wildcard certificates (`*.your-domain.com`), use Cloudflare DNS challenge:
-
-1. **Get Cloudflare API Token:**
-   - Go to Cloudflare Dashboard → My Profile → API Tokens
-   - Create token with **Zone → DNS → Edit** permissions
-   - Copy the token
-
-2. **Configure in Proxy Manager:**
-   - In SSL tab, select **DNS Challenge**
-   - Choose **Cloudflare** as provider
-   - Paste your API Token
-   - Enter your Cloudflare email
-
-3. **Request Certificate:**
-   - Enter domain: `*.your-domain.com`
-   - Click **Save**
-
-### Accessing Your Forum
+### Accessing Your Forum with SSL
 
 After setup, access your forum at:
-
 ```
 https://your-domain.com
-```
-
-### Proxy Manager Ports
-
-| Port | Purpose |
-|-------|---------|
-| 80    | HTTP (public) |
-| 443   | HTTPS (public) |
-| 81    | Management UI (internal - restrict access!) |
-
-### Switching Between Configurations
-
-Simply edit the `COMPOSE_PROFILES` variable in your [`.env`](.env) file:
-
-- **Without SSL (HTTP only):** Set `COMPOSE_PROFILES=` (empty)
-- **With SSL (HTTPS):** Set `COMPOSE_PROFILES=proxy`
-
-Then restart the stack:
-```bash
-docker compose down
-docker compose up -d --build
 ```
 
 ## Project Structure
 
 ```
 ips4-docker-stack/
-├── docker-compose.yml       # Docker Compose configuration (includes proxy service)
+├── docker-compose.yml       # Docker Compose configuration
 ├── .env                     # Environment variables (passwords, ports)
 ├── .env.example             # Environment variables template
 ├── nginx/
-│   └── default.conf         # Nginx configuration
+│   └── default.conf         # Nginx configuration (with SSL support)
 ├── php/
 │   ├── Dockerfile           # PHP-FPM 8.1 image definition
 │   ├── php.ini              # PHP configuration
@@ -261,7 +183,7 @@ ips4-docker-stack/
 │   ├── ips/                 # Your IPS4 files (mount this)
 │   ├── mysql/               # MySQL data (persistent)
 │   ├── redis/               # Redis data (persistent)
-│   ├── proxy/               # Proxy manager data (persistent)
+│   ├── ssl/                 # SSL certificates (fullchain.pem, privkey.pem)
 │   └── logs/
 │       └── nginx/           # Nginx logs (persistent)
 └── README.md                # This file
@@ -269,12 +191,13 @@ ips4-docker-stack/
 
 ## Configuration
 
-### HTTP Port
+### HTTP/HTTPS Ports
 
-Change the HTTP port in [`.env`](.env):
+Change ports in [`.env`](.env):
 
 ```bash
-HTTP_PORT=8080  # Change to 80 for production with reverse proxy
+HTTP_PORT=80   # HTTP - redirects to HTTPS
+HTTPS_PORT=443 # HTTPS - main site
 ```
 
 ### MySQL Buffer Pool Size
@@ -354,6 +277,9 @@ docker compose exec db mysqldump -u root -p${MYSQL_ROOT_PASSWORD} ips > mysql-ba
 
 # Back up Redis (optional - cache only)
 tar -czf redis-backup-$(date +%Y%m%d).tar.gz ./data/redis/
+
+# Back up SSL certificates
+tar -czf ssl-backup-$(date +%Y%m%d).tar.gz ./data/ssl/
 ```
 
 ### Restore
@@ -364,6 +290,9 @@ tar -xzf ips-backup-YYYYMMDD.tar.gz -C ./data/
 
 # Restore MySQL database
 docker compose exec -T db mysql -u root -p${MYSQL_ROOT_PASSWORD} ips < mysql-backup-YYYYMMDD.sql
+
+# Restore SSL certificates
+tar -xzf ssl-backup-YYYYMMDD.tar.gz -C ./data/
 ```
 
 ## Troubleshooting
@@ -389,12 +318,32 @@ docker compose ps db
 docker compose up -d --build db
 ```
 
+### SSL Certificate Issues
+
+1. Ensure certificates exist in `./data/ssl/`:
+```bash
+ls -la ./data/ssl/
+# Should show: fullchain.pem, privkey.pem
+```
+
+2. Check certificate permissions:
+```bash
+ls -la ./data/ssl/*.pem
+# Should be owned by UID 33 (www-data)
+```
+
+3. Fix permissions:
+```bash
+sudo chown 33:33 ./data/ssl/*.pem
+```
+
 ### Permission Issues
 
 Ensure proper permissions on data directories:
 ```bash
 # On Linux
 sudo chown -R 33:33 ./data/ips
+sudo chown -R 33:33 ./data/ssl
 ```
 
 ### High Memory Usage
@@ -404,17 +353,17 @@ Reduce MySQL buffer pool size in [`mysql/my.cnf`](mysql/my.cnf) and PHP-FPM work
 ## Security Recommendations
 
 1. **Change Default Passwords** - Always use strong passwords in [`.env`](.env)
-2. **Use HTTPS** - Set `COMPOSE_PROFILES=proxy` in [`.env`](.env) for automatic SSL certificates
-3. **Firewall** - Restrict access to ports 80/443 (public) and 81 (proxy UI - internal only!)
+2. **Use HTTPS** - Set up SSL certificates for production
+3. **Firewall** - Restrict access to ports 80/443 (public)
 4. **Regular Backups** - Set up automated backups
 5. **Update Regularly** - Keep Docker images updated
-6. **Proxy UI Security** - Change default Nginx Proxy Manager password immediately
+6. **Certificate Renewal** - Set up auto-renewal for Let's Encrypt certificates
 
 ## Production Deployment
 
 For production deployment:
 
-1. Use a reverse proxy with SSL/TLS termination
+1. Use SSL/HTTPS certificates
 2. Set up automated backups
 3. Configure monitoring (e.g., Prometheus, Grafana)
 4. Use a dedicated database server for larger communities
@@ -437,7 +386,7 @@ All persistent data is stored in the [`./data/`](./data/) directory on your host
 - `./data/ips/` - IPS4 files, uploads, and configuration
 - `./data/mysql/` - MySQL database files
 - `./data/redis/` - Redis AOF file (cache)
-- `./data/proxy/` - Nginx Proxy Manager data and SSL certificates
+- `./data/ssl/` - SSL certificates
 
 You can safely remove containers and images without losing your data.
 
@@ -460,13 +409,13 @@ docker compose ps
 A requirements checker is included in the setup guide. Access it at:
 
 ```
-http://your-server-ip:8080/ips4.php
+http://your-server-ip/ips4.php
 ```
 
 Or copy the official IPS4 requirements checker to `./data/ips/requirements.php`:
 
 1. Copy `requirements.php` to `./data/ips/`
-2. Visit `http://your-server-ip:8080/requirements.php`
+2. Visit `http://your-server-ip/requirements.php`
 3. Delete the file after verification
 
 ## Contributing

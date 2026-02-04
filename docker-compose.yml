@@ -50,9 +50,11 @@ services:
     depends_on:
       - php
     ports:
-      - "${HTTP_PORT:-8080}:80"
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
     volumes:
       - ./data/ips:/var/www/html:ro
+      - ./data/ssl:/etc/nginx/ssl:ro
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
       - ./data/logs/nginx:/var/log/nginx
     restart: unless-stopped
@@ -64,33 +66,6 @@ services:
       start_period: 40s
     networks:
       - ips-network
-
-  # Nginx Proxy Manager - Reverse Proxy with SSL
-  # Enable with: docker compose --profile proxy up -d
-  proxy:
-    image: 'jc21/nginx-proxy-manager:latest'
-    restart: unless-stopped
-    ports:
-      - '${PROXY_HTTP_PORT:-80}:80'     # HTTP
-      - '${PROXY_HTTPS_PORT:-443}:443'   # HTTPS
-      - '${PROXY_UI_PORT:-81}:81'     # Management UI
-    environment:
-      DB_SQLITE_FILE: "/data/database.sqlite"
-      DISABLE_IPV6: 'true'
-      # Default admin credentials (CHANGE AFTER FIRST LOGIN!)
-      # These are set during first container startup
-    volumes:
-      - ./data/proxy/data:/data
-      - ./data/proxy/letsencrypt:/etc/letsencrypt
-    networks:
-      - ips-network
-    profiles:
-      - proxy
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:81/api/status"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
 networks:
   ips-network:

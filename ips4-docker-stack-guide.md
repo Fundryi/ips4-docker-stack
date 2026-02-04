@@ -7,14 +7,15 @@ This guide sets up a production-grade Docker stack for **Invision Community 4.x*
 - MySQL 8.4 LTS
 - Redis 7 for caching
 - Host-mounted data so deleting containers does not delete your forum data
-- Optional reverse proxy with SSL/HTTPS support (use `--profile proxy`)
+- SSL/HTTPS support via Nginx
 
 ## What you need
 
 - A Linux host with Docker + Docker Compose plugin installed
 - Your licensed Invision Community 4 files
 - Ports:
-  - 8080 exposes the forum (change if you want)
+  - 80 exposes HTTP (redirects to HTTPS)
+  - 443 exposes HTTPS (main site)
 
 ## Folder layout
 
@@ -34,13 +35,14 @@ ips-docker/
     ips/
     mysql/
     redis/
+    ssl/
     logs/nginx/
 ```
 
 ## 1) Create folders
 
 ```bash
-mkdir -p ips-docker/{nginx,php,mysql,redis,data/ips,data/mysql,data/redis,data/logs/nginx}
+mkdir -p ips-docker/{nginx,php,mysql,redis,data/ips,data/mysql,data/redis,data/ssl,data/logs/nginx}
 cd ips-docker
 ```
 
@@ -56,71 +58,103 @@ Verify you have:
 ./data/ips/index.php
 ```
 
-## 2) Create docker-compose.yml
-
-Create `ips-docker/docker-compose.yml`:
-
-```yaml
-services:
-  db:
-    image: mysql:8.4
-    command: ["mysqld", "--defaults-file=/etc/mysql/conf.d/my.cnf"]
-    environment:
-      MYSQL_DATABASE: ips
-      MYSQL_USER: ips
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-    volumes:
-      - ./data/mysql:/var/lib/mysql
-      - ./mysql/my.cnf:/etc/mysql/conf.d/my.cnf:ro
-    restart: unless-stopped
-
-  redis:
-    image: redis:7-alpine
-    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
-    volumes:
-      - ./data/redis:/data
-      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
-    restart: unless-stopped
-
-  php:
-    build: ./php
-    volumes:
-      - ./data/ips:/var/www/html
-    restart: unless-stopped
-
-  nginx:
-    image: nginx:stable-alpine
-    depends_on:
-      - php
-    ports:
-      - "8080:80"
-    volumes:
-      - ./data/ips:/var/www/html:ro
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./data/logs/nginx:/var/log/nginx
-    restart: unless-stopped
-```
-
-## 3) Create .env (DB passwords + optional proxy)
+## 2) Create .env (DB passwords + ports)
 
 Create `ips-docker/.env`:
 
 ```bash
-# Docker Compose Profiles
-# Set to "proxy" to enable reverse proxy with SSL/HTTPS
-# Leave empty for HTTP only mode
-COMPOSE_PROFILES=
-
+# Database Configuration
 MYSQL_PASSWORD=change_me
 MYSQL_ROOT_PASSWORD=change_me_root
+
+# Port Configuration
+HTTP_PORT=80
+HTTPS_PORT=443
 ```
 
 Use strong passwords.
 
-## 4) Build a PHP-FPM image (PHP 8.1 + extensions + Redis extension)
+## 3) Start the stack
 
-### 4.1 php/Dockerfile
+From `ips-docker/`:
+
+```bash
+docker compose up -d --build
+```
+
+Open:
+
+```text
+http://SERVER-IP:80/  # Redirects to HTTPS
+https://SERVER-IP:443/  # Main site with HTTPS
+```
+
+**Note:** Without SSL certificates, HTTPS will show a warning. See SSL setup below.
+
+## 4) SSL/HTTPS Setup (Optional but Recommended)
+
+Nginx handles SSL directly. You need to provide your SSL certificates.
+
+### Getting SSL Certificates
+
+#### Option 1: Let's Encrypt (Recommended)
+
+1. **Install certbot on your host:**
+```bash
+# Ubuntu/Debian
+sudo apt update && sudo apt install certbot
+
+# CentOS/RHEL
+sudo yum install certbot
+```
+
+2. **Generate certificates:**
+```bash
+sudo certbot certonly --webroot -w /var/www/html -d yourdomain.com -d www.yourdomain.com
+```
+
+3. **Copy certificates to project:**
+```bash
+sudo cp /etc/letsencrypt/live/yourdomain.com/fullchain.pem ./data/ssl/
+sudo cp /etc/letsencrypt/live/yourdomain.com/privkey.pem ./data/ssl/
+sudo chown 33:33 ./data/ssl/*.pem
+```
+
+4. **Restart nginx:**
+```bash
+docker compose restart nginx
+```
+
+#### Option 2: Commercial SSL Certificates
+
+1. Purchase SSL certificate from a provider
+2. Download certificate files (fullchain.pem and privkey.pem)
+3. Place them in `./data/ssl/`:
+   - `fullchain.pem` - Certificate + intermediate chain
+   - `privkey.pem` - Private key
+
+4. **Restart nginx:**
+```bash
+docker compose restart nginx
+```
+
+### Certificate Renewal
+
+Let's Encrypt certificates need to be renewed. Set up auto-renewal:
+
+```bash
+# Test renewal
+sudo certbot renew --dry-run
+
+# Set up auto-renewal (cron job)
+sudo crontab -e
+# Add this line:
+0 0,12 * * * certbot renew --quiet --post-hook "cp /etc/letsencrypt/live/yourdomain.com/fullchain.pem /path/to/ips-docker/data/ssl/ && cp /etc/letsencrypt/live/yourdomain.com/privkey.pem /path/to/ips-docker/data/ssl/ && chown 33:33 /path/to/ips-docker/data/ssl/*.pem"
+```
+
+## 5) Build a PHP-FPM image (PHP 8.1 + extensions + Redis extension)
+
+### 5.1 php/Dockerfile
 
 Create `ips-docker/php/Dockerfile`:
 
@@ -135,7 +169,7 @@ COPY www.conf /usr/local/etc/php-fpm.d/www.conf
 WORKDIR /var/www/html
 ```
 
-### 4.2 php/php.ini
+### 5.2 php/php.ini
 
 Create `ips-docker/php/php.ini`:
 
@@ -159,7 +193,7 @@ opcache.revalidate_freq=10
 opcache.jit=0
 ```
 
-### 4.3 php/www.conf (PHP-FPM performance)
+### 5.3 php/www.conf (PHP-FPM performance)
 
 Create `ips-docker/php/www.conf`:
 
@@ -182,47 +216,100 @@ catch_workers_output = yes
 
 Note: these values assume a strong server and IPS is a main workload. If you run lots of other services, lower `pm.max_children`.
 
-## 5) Nginx config (IPS4 friendly URLs + static caching)
+## 6) Nginx config (IPS4 friendly URLs + SSL + static caching)
 
 Create `ips-docker/nginx/default.conf`:
 
 ```nginx
+# HTTP Server - Redirect to HTTPS
 server {
   listen 80;
   server_name _;
+  return 301 https://$host$request_uri;
+}
+
+# HTTPS Server
+server {
+  listen 443 ssl http2;
+  server_name _;
   root /var/www/html;
-  index index.php;
+  index index.php index.html;
 
   client_max_body_size 512m;
 
-  gzip on;
-  gzip_types
-    text/plain text/css application/json application/javascript
-    text/xml application/xml application/xml+rss text/javascript;
+  # SSL Configuration
+  ssl_certificate /etc/nginx/ssl/fullchain.pem;
+  ssl_certificate_key /etc/nginx/ssl/privkey.pem;
+  ssl_protocols TLSv1.2 TLSv1.3;
+  ssl_ciphers HIGH:!aNULL:!MD5;
+  ssl_prefer_server_ciphers on;
+  ssl_session_cache shared:SSL:10m;
+  ssl_session_timeout 10m;
 
+  # Security headers
+  add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+  add_header X-Frame-Options "SAMEORIGIN" always;
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header X-XSS-Protection "1; mode=block" always;
+  add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+  # Gzip compression
+  gzip on;
+  gzip_vary on;
+  gzip_min_length 1024;
+  gzip_types
+    text/plain
+    text/css
+    text/xml
+    text/javascript
+    application/json
+    application/javascript
+    application/xml+rss
+    application/rss+xml
+    application/atom+xml
+    image/svg+xml;
+
+  # IPS4 friendly URLs
   location / {
     try_files $uri $uri/ /index.php?$args;
   }
 
+  # PHP-FPM handling
   location ~ \.php$ {
     try_files $uri =404;
     include fastcgi_params;
     fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
     fastcgi_pass php:9000;
     fastcgi_read_timeout 300;
+    fastcgi_buffers 16 16k;
+    fastcgi_buffer_size 32k;
   }
 
+  # Static file caching
   location ~* \.(?:css|js|jpg|jpeg|gif|png|webp|svg|ico|woff2?|ttf|eot)$ {
     expires 30d;
     access_log off;
+    add_header Cache-Control "public, immutable";
     try_files $uri =404;
   }
 
-  location ~ /\.(?!well-known) { deny all; }
+  # Deny access to hidden files (except .well-known)
+  location ~ /\.(?!well-known) {
+    deny all;
+    access_log off;
+    log_not_found off;
+  }
+
+  # Health check endpoint
+  location /health {
+    access_log off;
+    return 200 "healthy\n";
+    add_header Content-Type text/plain;
+  }
 }
 ```
 
-## 6) MySQL 8.4 tuning
+## 7) MySQL 8.4 tuning
 
 Create `ips-docker/mysql/my.cnf`:
 
@@ -258,7 +345,7 @@ Quick sizing:
 - 32 GB RAM: 16G to 20G
 - 64 GB RAM: 32G to 40G
 
-## 7) Redis tuning (cache + durable AOF)
+## 8) Redis tuning (cache + durable AOF)
 
 Create `ips-docker/redis/redis.conf`:
 
@@ -277,23 +364,12 @@ databases 1
 
 Adjust `maxmemory` depending on RAM and forum size.
 
-## 8) Start the stack
+## 9) IPS4 Installation
 
-From `ips-docker/`:
-
-```bash
-docker compose up -d --build
-```
-
-To enable the reverse proxy with SSL/HTTPS support, set `COMPOSE_PROFILES=proxy` in your `.env` file before starting.
-
-Open:
-
+After starting the stack, access your forum at:
 ```text
-http://SERVER-IP:8080/
+https://SERVER-IP:443/
 ```
-
-**Note:** When using the reverse proxy (COMPOSE_PROFILES=proxy), access the proxy management UI at `http://SERVER-IP:81` (default port, configurable via `PROXY_UI_PORT` in `.env`).
 
 Installer values:
 - DB host: db
@@ -301,13 +377,13 @@ Installer values:
 - DB user: ips
 - DB pass: value of MYSQL_PASSWORD in .env
 
-## 9) Enable Redis in IPS (after install)
+## 10) Enable Redis in IPS (after install)
 
 In AdminCP, set caching to Redis:
 - Host: redis
 - Port: 6379
 
-## 10) Requirements checker (optional but recommended)
+## 11) Requirements checker (optional but recommended)
 
 Copy the IPS requirements checker into the web root, for example:
 
@@ -318,7 +394,7 @@ Copy the IPS requirements checker into the web root, for example:
 Open:
 
 ```text
-http://SERVER-IP:8080/requirements.php
+https://SERVER-IP:443/requirements.php
 ```
 
 Delete it afterwards:
@@ -334,6 +410,7 @@ All persistent data lives on the host:
 - ./data/mysql (database)
 - ./data/redis (Redis AOF)
 - ./data/ips (forum files, uploads, config)
+- ./data/ssl (SSL certificates)
 
 You can remove containers and images and your data stays.
 
@@ -362,4 +439,5 @@ docker compose up -d
 Backup:
 - Back up ./data/ips
 - Back up ./data/mysql (or use mysqldump)
+- Back up ./data/ssl (SSL certificates)
 - Redis is cache, but AOF is in ./data/redis if you want it
