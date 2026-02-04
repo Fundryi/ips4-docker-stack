@@ -34,6 +34,9 @@ echo ""
 echo "==> Creating required directories..."
 mkdir -p data/ssl data/certbot/www data/certbot/logs
 
+echo "==> Stopping any running containers to free ports..."
+docker compose down 2>/dev/null || true
+
 echo "==> Starting nginx for ACME challenge..."
 docker compose up -d nginx
 
