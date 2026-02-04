@@ -20,45 +20,34 @@ if [ ! -f "compose.yaml" ] && [ ! -f "docker-compose.yml" ]; then
     exit 1
 fi
 
-# Try to read SSL_PATH from .env file
-if [ -f .env ]; then
-    export $(grep -v '^#' .env | grep -E '^(DOMAIN|SSL_PATH)=' | xargs 2>/dev/null) || true
-fi
-
-# SSL path - persistent location outside git-managed directory
-SSL_PATH="${SSL_PATH:-/etc/komodo/ssl/ips4}"
-
-echo "==> SSL path: $SSL_PATH"
-echo ""
-
 # Check if ssl directory exists
-if [ ! -d "$SSL_PATH" ]; then
-    echo "No SSL data directory found at $SSL_PATH"
+if [ ! -d "data/ssl" ]; then
+    echo "No SSL data directory found. Nothing to fix."
     echo "Run: bash scripts/init-ssl.sh"
     exit 0
 fi
 
 # Check if certificates actually exist in live/
-if [ -d "$SSL_PATH/live" ] && [ -n "$(ls -A $SSL_PATH/live 2>/dev/null)" ]; then
-    echo "==> Found existing certificates in $SSL_PATH/live/"
-    ls -la "$SSL_PATH/live/"
+if [ -d "data/ssl/live" ] && [ -n "$(ls -A data/ssl/live 2>/dev/null)" ]; then
+    echo "==> Found existing certificates in data/ssl/live/"
+    ls -la data/ssl/live/
     echo ""
 
     # Find the domain directory
-    for domain_dir in "$SSL_PATH/live"/*/; do
+    for domain_dir in data/ssl/live/*/; do
         if [ -d "$domain_dir" ]; then
             domain=$(basename "$domain_dir")
             echo "==> Found certificate for: $domain"
 
             # Check if the source files exist (following symlinks)
-            if [ -e "$SSL_PATH/live/$domain/fullchain.pem" ] && [ -e "$SSL_PATH/live/$domain/privkey.pem" ]; then
+            if [ -e "data/ssl/live/$domain/fullchain.pem" ] && [ -e "data/ssl/live/$domain/privkey.pem" ]; then
                 echo "==> Copying certificate files (fixes Docker volume mount issues)..."
                 # Use cp -L to follow symlinks and copy actual content
-                cp -L "$SSL_PATH/live/$domain/fullchain.pem" "$SSL_PATH/fullchain.pem"
-                cp -L "$SSL_PATH/live/$domain/privkey.pem" "$SSL_PATH/privkey.pem"
-                chmod 644 "$SSL_PATH/fullchain.pem"
-                chmod 600 "$SSL_PATH/privkey.pem"
-                echo "    Certificate files copied to $SSL_PATH/"
+                cp -L "data/ssl/live/$domain/fullchain.pem" data/ssl/fullchain.pem
+                cp -L "data/ssl/live/$domain/privkey.pem" data/ssl/privkey.pem
+                chmod 644 data/ssl/fullchain.pem
+                chmod 600 data/ssl/privkey.pem
+                echo "    Certificate files copied to data/ssl/"
                 echo ""
                 echo "==> SSL fixed! Restart the stack:"
                 echo "    docker compose down && docker compose up -d"
@@ -80,31 +69,36 @@ fi
 echo "==> No certificates found. Checking for stale certbot state..."
 
 STALE_STATE=false
-if [ -d "$SSL_PATH/accounts" ]; then
+if [ -d "data/ssl/accounts" ]; then
     echo "    Found stale accounts directory"
     STALE_STATE=true
 fi
-if [ -d "$SSL_PATH/renewal" ] && [ -n "$(ls -A $SSL_PATH/renewal 2>/dev/null)" ]; then
+if [ -d "data/ssl/renewal" ] && [ -n "$(ls -A data/ssl/renewal 2>/dev/null)" ]; then
     echo "    Found stale renewal configs"
     STALE_STATE=true
 fi
 
 # Also clean up any directory that should be a file
-if [ -d "$SSL_PATH/cloudflare.ini" ]; then
+if [ -d "certbot/cloudflare.ini" ]; then
     echo "    Found cloudflare.ini as directory (should be file)"
-    rm -rf "$SSL_PATH/cloudflare.ini"
+    rm -rf "certbot/cloudflare.ini"
+    STALE_STATE=true
+fi
+if [ -d "data/ssl/cloudflare.ini" ]; then
+    echo "    Found data/ssl/cloudflare.ini as directory (should be file)"
+    rm -rf "data/ssl/cloudflare.ini"
     STALE_STATE=true
 fi
 
 if [ "$STALE_STATE" = true ]; then
     echo ""
     echo "==> Cleaning up stale certbot state..."
-    rm -rf "$SSL_PATH/accounts"
-    rm -rf "$SSL_PATH/renewal"
-    rm -rf "$SSL_PATH/renewal-hooks"
-    rm -f "$SSL_PATH/cloudflare.ini"
-    rm -f "$SSL_PATH/fullchain.pem"
-    rm -f "$SSL_PATH/privkey.pem"
+    rm -rf data/ssl/accounts
+    rm -rf data/ssl/renewal
+    rm -rf data/ssl/renewal-hooks
+    rm -f data/ssl/cloudflare.ini
+    rm -f data/ssl/fullchain.pem
+    rm -f data/ssl/privkey.pem
     echo "    Cleanup complete."
     echo ""
     echo "==> Now run the SSL initialization script:"
