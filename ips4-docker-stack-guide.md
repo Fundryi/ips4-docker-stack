@@ -7,6 +7,7 @@ This guide sets up a production-grade Docker stack for **Invision Community 4.x*
 - MySQL 8.4 LTS
 - Redis 7 for caching
 - Host-mounted data so deleting containers does not delete your forum data
+- Optional reverse proxy with SSL/HTTPS support (use `--profile proxy`)
 
 ## What you need
 
@@ -101,11 +102,16 @@ services:
     restart: unless-stopped
 ```
 
-## 3) Create .env (DB passwords)
+## 3) Create .env (DB passwords + optional proxy)
 
 Create `ips-docker/.env`:
 
 ```bash
+# Docker Compose Profiles
+# Set to "proxy" to enable reverse proxy with SSL/HTTPS
+# Leave empty for HTTP only mode
+COMPOSE_PROFILES=
+
 MYSQL_PASSWORD=change_me
 MYSQL_ROOT_PASSWORD=change_me_root
 ```
@@ -279,11 +285,15 @@ From `ips-docker/`:
 docker compose up -d --build
 ```
 
+To enable the reverse proxy with SSL/HTTPS support, set `COMPOSE_PROFILES=proxy` in your `.env` file before starting.
+
 Open:
 
 ```text
 http://SERVER-IP:8080/
 ```
+
+**Note:** When using the reverse proxy (COMPOSE_PROFILES=proxy), access the proxy management UI at `http://SERVER-IP:81` (default port, configurable via `PROXY_UI_PORT` in `.env`).
 
 Installer values:
 - DB host: db

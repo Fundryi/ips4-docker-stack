@@ -35,15 +35,19 @@ cd ips4-docker-stack
 Edit [`.env`](.env) file and set strong passwords:
 
 ```bash
+# Docker Compose Profiles
+# Set to "proxy" to enable reverse proxy with SSL/HTTPS
+# Leave empty for HTTP only mode
+COMPOSE_PROFILES=
+
 # Database Configuration
 MYSQL_PASSWORD=your_strong_password_here
 MYSQL_ROOT_PASSWORD=your_strong_root_password_here
 
-# HTTP Port Configuration (Non-SSL mode)
+# HTTP Port Configuration
 HTTP_PORT=8080
 
-# Reverse Proxy Configuration (SSL mode) - Optional
-USE_PROXY=false
+# Reverse Proxy Configuration (Optional)
 PROXY_HTTP_PORT=80
 PROXY_HTTPS_PORT=443
 PROXY_UI_PORT=81
@@ -107,7 +111,7 @@ After installation, enable Redis caching in AdminCP:
 
 ## SSL/HTTPS Setup (Optional)
 
-For production deployment with automatic SSL certificates and HTTPS, use optional reverse proxy configuration with **Nginx Proxy Manager**.
+For production deployment with automatic SSL certificates and HTTPS, use the reverse proxy service with **Nginx Proxy Manager**.
 
 ### Why Use a Proxy?
 
@@ -124,8 +128,8 @@ For production deployment with automatic SSL certificates and HTTPS, use optiona
 Edit [`.env`](.env) file and set your proxy configuration:
 
 ```bash
-# Set to true to use proxy mode
-USE_PROXY=true
+# Enable the reverse proxy
+COMPOSE_PROFILES=proxy
 
 # Configure public ports
 PROXY_HTTP_PORT=80
@@ -141,11 +145,13 @@ CLOUDFLARE_API_TOKEN=your_api_token_here
 CLOUDFLARE_EMAIL=your_cloudflare_email@example.com
 ```
 
-2. **Start with proxy:**
+2. **Start the stack:**
 
 ```bash
-docker compose -f docker-compose.proxy.yml up -d --build
+docker compose up -d --build
 ```
+
+The proxy service will automatically start because `COMPOSE_PROFILES=proxy` is set in your `.env` file.
 
 3. **Access a Proxy Manager UI:**
 
@@ -222,24 +228,22 @@ https://your-domain.com
 
 ### Switching Between Configurations
 
-- **Without SSL (HTTP only):** Use [`docker-compose.yml`](docker-compose.yml)
-- **With SSL (HTTPS):** Use [`docker-compose.proxy.yml`](docker-compose.proxy.yml)
+Simply edit the `COMPOSE_PROFILES` variable in your [`.env`](.env) file:
 
-To switch:
+- **Without SSL (HTTP only):** Set `COMPOSE_PROFILES=` (empty)
+- **With SSL (HTTPS):** Set `COMPOSE_PROFILES=proxy`
+
+Then restart the stack:
 ```bash
-# Stop current stack
 docker compose down
-
-# Start with SSL
-docker compose -f docker-compose.proxy.yml up -d --build
+docker compose up -d --build
 ```
 
 ## Project Structure
 
 ```
 ips4-docker-stack/
-├── docker-compose.yml       # Main Docker Compose configuration (HTTP only)
-├── docker-compose.proxy.yml # Optional configuration with SSL/HTTPS
+├── docker-compose.yml       # Docker Compose configuration (includes proxy service)
 ├── .env                     # Environment variables (passwords, ports)
 ├── .env.example             # Environment variables template
 ├── nginx/
@@ -400,7 +404,7 @@ Reduce MySQL buffer pool size in [`mysql/my.cnf`](mysql/my.cnf) and PHP-FPM work
 ## Security Recommendations
 
 1. **Change Default Passwords** - Always use strong passwords in [`.env`](.env)
-2. **Use HTTPS** - Use [`docker-compose.proxy.yml`](docker-compose.proxy.yml) for automatic SSL certificates
+2. **Use HTTPS** - Set `COMPOSE_PROFILES=proxy` in [`.env`](.env) for automatic SSL certificates
 3. **Firewall** - Restrict access to ports 80/443 (public) and 81 (proxy UI - internal only!)
 4. **Regular Backups** - Set up automated backups
 5. **Update Regularly** - Keep Docker images updated
