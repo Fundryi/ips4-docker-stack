@@ -1,6 +1,16 @@
 services:
+  db-init:
+    image: busybox
+    command: chown -R 999:999 /data
+    volumes:
+      - /srv/docker-data/ips4/mysql:/data
+    restart: "no"
+
   db:
     build: ./mysql
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
     environment:
       MYSQL_DATABASE: ips
       MYSQL_USER: ips
@@ -17,8 +27,18 @@ services:
     networks:
       - ips-network
 
+  redis-init:
+    image: busybox
+    command: chown -R 999:999 /data
+    volumes:
+      - /srv/docker-data/ips4/redis:/data
+    restart: "no"
+
   redis:
     image: redis:7-alpine
+    depends_on:
+      redis-init:
+        condition: service_completed_successfully
     command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
     volumes:
       - /srv/docker-data/ips4/redis:/data
