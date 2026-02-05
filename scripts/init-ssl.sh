@@ -82,6 +82,13 @@ if [ "$STAGING" = true ]; then
 else
     STAGING_FLAG=""
 fi
+
+# Set force renewal flag
+if [ "$FORCE" = true ]; then
+    FORCE_FLAG="--force-renewal"
+else
+    FORCE_FLAG=""
+fi
 echo ""
 
 # Check if certificate already exists and is valid for at least 30 days
@@ -161,6 +168,7 @@ EOF
         -v "$DATA_DIR/certbot/logs:/var/log/letsencrypt" \
         certbot/dns-cloudflare:latest certonly \
         $STAGING_FLAG \
+        $FORCE_FLAG \
         --dns-cloudflare \
         --dns-cloudflare-credentials /etc/letsencrypt/cloudflare.ini \
         --dns-cloudflare-propagation-seconds 30 \
@@ -183,6 +191,7 @@ else
         -v "$DATA_DIR/certbot/logs:/var/log/letsencrypt" \
         certbot/certbot:latest certonly \
         $STAGING_FLAG \
+        $FORCE_FLAG \
         --webroot \
         --webroot-path=/var/www/certbot \
         --email "$EMAIL" \
