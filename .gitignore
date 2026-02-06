@@ -9,8 +9,8 @@ data/*
 !data/ips/
 !data/ssl/
 data/ips/*
-!data/ips/index.php
-!data/ips/ips4.php
+!data/ips/index.html
+!data/ips/setup.php
 !data/ips/.gitkeep
 data/ssl/*
 !data/ssl/.gitkeep
