@@ -32,6 +32,9 @@ RUN apt-get update && apt-get install -y libgmp-dev \
 # Install Redis extension via PECL
 RUN pecl install redis && docker-php-ext-enable redis
 
+# Create PHP session directory with proper ownership
+RUN mkdir -p /var/lib/php/sessions && chown www-data:www-data /var/lib/php/sessions && chmod 1733 /var/lib/php/sessions
+
 # Copy PHP configuration files
 COPY php.ini /usr/local/etc/php/conf.d/99-ips.ini
 COPY www.conf /usr/local/etc/php-fpm.d/www.conf

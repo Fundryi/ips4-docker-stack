@@ -37,6 +37,7 @@ desktop.ini
 
 # Docker files
 .dockerignore
+compose.override.yaml
 
 # Logs
 *.log
