@@ -124,6 +124,104 @@ COMPOSE_PROFILES=https
 
 Then restart: `docker compose down && docker compose up -d`
 
+## Local Development (Windows)
+
+The base `compose.yaml` uses absolute Linux paths (`/srv/docker-data/ips4/...`) for production servers. For local development on Windows, a `compose.override.yaml` remaps these to the local `./data/` directory instead.
+
+### How it works
+
+| | Production (Linux) | Local (Windows) |
+|---|---|---|
+| Data location | `/srv/docker-data/ips4/` | `./data/` in project dir |
+| Override file | Not present | `compose.override.yaml` |
+| Files editable via | Server filesystem | Windows Explorer / VS Code |
+| SSL setup | `./scripts/init-ssl.sh` | Certbot via Docker (see below) |
+
+Docker Compose automatically loads `compose.override.yaml` when present — no extra flags needed. The override is gitignored so it never affects production.
+
+### Setup
+
+**1. Create `compose.override.yaml`** in the project root:
+
+```yaml
+# Local development overrides - NOT committed to git
+# Remaps /srv/docker-data/ips4/ paths to local ./data/ for Windows
+services:
+  db-init:
+    volumes:
+      - ./data/mysql:/data
+
+  db:
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+
+  redis-init:
+    volumes:
+      - ./data/redis:/data
+
+  redis:
+    volumes:
+      - ./data/redis:/data
+
+  php:
+    volumes:
+      - ./data/ips:/var/www/html
+
+  nginx:
+    volumes:
+      - ./data/ips:/var/www/html:ro
+      - ./data/logs/nginx:/var/log/nginx
+
+  nginx-https:
+    volumes:
+      - ./data/ips:/var/www/html:ro
+      - ./data/ssl:/etc/nginx/ssl:ro
+      - ./data/certbot/www:/var/www/certbot:ro
+      - ./data/logs/nginx:/var/log/nginx
+
+  certbot:
+    volumes:
+      - ./data/ssl:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+      - ./data/certbot/logs:/var/log/letsencrypt
+```
+
+**2. Set HTTP mode** in `.env` (simplest for local):
+
+```
+COMPOSE_PROFILES=http
+```
+
+**3. Start:**
+
+```powershell
+docker compose up -d --build
+```
+
+Your IPS4 files in `data/ips/` are now served directly. Open `http://localhost`.
+
+### Local HTTPS (optional)
+
+Since the shell scripts can't run on Windows natively, use certbot via Docker with the Cloudflare DNS challenge:
+
+```powershell
+# 1. Create cloudflare credentials
+echo dns_cloudflare_api_token = YOUR_TOKEN > data/ssl/cloudflare.ini
+
+# 2. Get certificate (no port 80 needed)
+docker run --rm -v "%cd%/data/ssl:/etc/letsencrypt" certbot/dns-cloudflare certonly --dns-cloudflare --dns-cloudflare-credentials /etc/letsencrypt/cloudflare.ini -d yourdomain.com --email you@email.com --agree-tos --no-eff-email
+
+# 3. Copy certs to where nginx expects them
+copy data\ssl\live\yourdomain.com\fullchain.pem data\ssl\fullchain.pem
+copy data\ssl\live\yourdomain.com\privkey.pem data\ssl\privkey.pem
+```
+
+Then set `COMPOSE_PROFILES=https` in `.env` and add your domain to `C:\Windows\System32\drivers\etc\hosts`:
+
+```
+127.0.0.1  yourdomain.com
+```
+
 ## IPS4 Installation
 
 1. Extract IPS4 files to `data/ips/`
@@ -152,19 +250,23 @@ docker compose exec db mysqldump -u root -p ips > backup.sql  # Backup DB
 
 ```
 ips4-docker-stack/
+├── compose.yaml              # Main Docker Compose config (production paths)
+├── compose.override.yaml     # Local overrides - gitignored (see Local Development)
+├── .env                      # Environment config (gitignored)
 ├── data/
-│   ├── ips/           # IPS4 files (place your files here)
-│   ├── mysql/         # MySQL data
-│   ├── redis/         # Redis data
-│   ├── ssl/           # SSL certificates
-│   └── certbot/       # Certbot data
-├── nginx/             # Nginx configs
-├── php/               # PHP-FPM Dockerfile & config
-├── mysql/             # MySQL Dockerfile & config
-├── redis/             # Redis config
-├── scripts/           # Helper scripts
-└── docker-compose.yml
+│   ├── ips/                  # IPS4 files (used locally via override)
+│   ├── mysql/                # MySQL data
+│   ├── redis/                # Redis data
+│   ├── ssl/                  # SSL certificates
+│   └── certbot/              # Certbot data
+├── nginx/                    # Nginx configs (http.conf, https.conf.template)
+├── php/                      # PHP-FPM Dockerfile & config
+├── mysql/                    # MySQL Dockerfile & config
+├── redis/                    # Redis config
+└── scripts/                  # SSL init & helper scripts (Linux)
 ```
+
+> **Note:** On production Linux servers, persistent data lives at `/srv/docker-data/ips4/` (defined in `compose.yaml`). Locally on Windows, `compose.override.yaml` remaps these to `./data/` so files are accessible from your editor.
 
 ## Troubleshooting
 
