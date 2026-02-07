@@ -34,6 +34,12 @@ open http://localhost
 | `redis` | Redis 7 | 6379 |
 | `certbot` | SSL renewal | - |
 
+## Nginx Config Files
+
+- `nginx/http.conf` is a static config for the HTTP profile.
+- `nginx/https.conf.template` is intentionally a template because it uses `${DOMAIN}` values at runtime.
+- In `compose.yaml`, the HTTPS service mounts it to `/etc/nginx/templates/default.conf.template`; the official nginx entrypoint renders it into `/etc/nginx/conf.d/default.conf` on container start.
+
 ## Environment Variables
 
 | Variable | Default | Description |
@@ -170,6 +176,7 @@ services:
   nginx:
     volumes:
       - ./data/ips:/var/www/html:ro
+      - ./data/certbot/www:/var/www/certbot:ro
       - ./data/logs/nginx:/var/log/nginx
 
   nginx-https:
