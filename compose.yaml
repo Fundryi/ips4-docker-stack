@@ -85,7 +85,7 @@ services:
       - /srv/docker-data/ips4/logs/nginx:/var/log/nginx
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -114,7 +114,7 @@ services:
       - /srv/docker-data/ips4/logs/nginx:/var/log/nginx
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -152,6 +152,36 @@ services:
     restart: unless-stopped
     profiles:
       - https
+
+  # IPS4 task scheduler cron (enable with --profile cron)
+  # Set IPS_TASK_KEY in .env to the key shown in ACP > Advanced Configuration > Tasks
+  cron:
+    build: ./php
+    volumes:
+      - /srv/docker-data/ips4/ips:/var/www/html
+    depends_on:
+      php:
+        condition: service_healthy
+    environment:
+      IPS_TASK_KEY: ${IPS_TASK_KEY:-}
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        if [ -z "$$IPS_TASK_KEY" ]; then
+          echo "cron: IPS_TASK_KEY is not set. Copy the key from ACP > Advanced Configuration > Tasks into .env"
+          exit 1
+        fi
+        echo "cron: IPS task scheduler running every 60s"
+        while true; do
+          /usr/local/bin/php -d memory_limit=-1 -d max_execution_time=0 /var/www/html/applications/core/interface/task/task.php "$$IPS_TASK_KEY" 2>&1
+          sleep 60
+        done
+    restart: unless-stopped
+    networks:
+      - ips-network
+    profiles:
+      - cron
 
 networks:
   ips-network:
