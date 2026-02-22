@@ -1,3 +1,6 @@
+resolver 127.0.0.11 valid=30s ipv6=off;
+resolver_timeout 5s;
+
 # Default server block - reject/redirect requests not using the correct domain
 # This catches requests via IP address or wrong hostname
 server {
@@ -104,7 +107,8 @@ server {
     try_files $uri =404;
     include fastcgi_params;
     fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-    fastcgi_pass php:9000;
+    set $php_upstream php:9000;
+    fastcgi_pass $php_upstream;
     fastcgi_read_timeout 300;
     fastcgi_buffers 16 16k;
     fastcgi_buffer_size 32k;
