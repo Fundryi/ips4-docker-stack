@@ -97,6 +97,11 @@ server {
     application/atom+xml
     image/svg+xml;
 
+  # IPS4 REST API — route to api/index.php
+  location /api/ {
+    try_files $uri $uri/ /api/index.php?$args;
+  }
+
   # IPS4 friendly URLs
   location / {
     try_files $uri $uri/ /index.php?$args;
@@ -106,6 +111,7 @@ server {
   location ~ \.php$ {
     try_files $uri =404;
     include fastcgi_params;
+    fastcgi_param SERVER_NAME $host;
     fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
     set $php_upstream php:9000;
     fastcgi_pass $php_upstream;
