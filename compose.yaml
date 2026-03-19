@@ -153,6 +153,29 @@ services:
     profiles:
       - https
 
+  # Automated database backups (enable with --profile backup)
+  # Runs on start then on schedule. All settings configurable via env.
+  db-backup:
+    build:
+      context: ./docker/db-backup
+    environment:
+      DB_HOST: db
+      DB_USER: ips
+      DB_PASS: ${MYSQL_PASSWORD}
+      DB_NAME: ips
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-1}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - /srv/docker-data/ips4/backups/mysql:/backups
+    restart: unless-stopped
+    networks:
+      - ips-network
+    profiles:
+      - backup
+
   # IPS4 task scheduler cron (enable with --profile cron)
   # Set IPS_TASK_KEY in .env to the key shown in ACP > Advanced Configuration > Tasks
   cron:
@@ -172,7 +195,11 @@ services:
           echo "cron: IPS_TASK_KEY is not set. Copy the key from ACP > Advanced Configuration > Tasks into .env"
           exit 1
         fi
-        echo "cron: IPS task scheduler running every 60s"
+        echo "cron: waiting for DB..."
+        until php -r "require '/var/www/html/conf_global.php'; new mysqli(\$$INFO['sql_host'], \$$INFO['sql_user'], \$$INFO['sql_pass'], \$$INFO['sql_database'], \$$INFO['sql_port']);" 2>/dev/null; do
+          sleep 5
+        done
+        echo "cron: DB ready. IPS task scheduler running every 60s"
         while true; do
           /usr/local/bin/php -d memory_limit=-1 -d max_execution_time=0 /var/www/html/applications/core/interface/task/task.php "$$IPS_TASK_KEY" 2>&1
           sleep 60

@@ -32,6 +32,13 @@ RUN apt-get update && apt-get install -y libgmp-dev \
 # Install Redis extension via PECL
 RUN pecl install redis && docker-php-ext-enable redis
 
+# Install ionCube Loader (required for encoded XENNTEC app releases)
+RUN curl -fSL https://downloads.ioncube.com/loader_downloads/ioncube_loaders_lin_x86-64.tar.gz -o /tmp/ioncube.tar.gz \
+    && tar -xzf /tmp/ioncube.tar.gz -C /tmp \
+    && cp /tmp/ioncube/ioncube_loader_lin_8.1.so "$(php -r 'echo ini_get("extension_dir");')/" \
+    && echo "zend_extension=ioncube_loader_lin_8.1.so" > /usr/local/etc/php/conf.d/00-ioncube.ini \
+    && rm -rf /tmp/ioncube /tmp/ioncube.tar.gz
+
 # Create PHP session directory with proper ownership
 RUN mkdir -p /var/lib/php/sessions && chown www-data:www-data /var/lib/php/sessions && chmod 1733 /var/lib/php/sessions
 
