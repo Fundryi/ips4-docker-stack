@@ -210,6 +210,71 @@ services:
     profiles:
       - cron
 
+  # Cloudflare Tunnel for external access without open ports (enable with --profile tunnel)
+  # Auto-provisions a named tunnel on first boot if CF_API_TOKEN is set.
+  # Priority: TUNNEL_TOKEN (direct) > CF_API_TOKEN (auto-provision) > quick tunnel (random URL).
+  cloudflared:
+    build:
+      context: ./docker/cloudflared
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+      CF_API_TOKEN: ${CLOUDFLARE_TUNNEL_API_TOKEN:-}
+      CF_TUNNEL_NAME: ${CLOUDFLARE_TUNNEL_NAME:-ips4}
+      CF_SUBDOMAIN: ${CLOUDFLARE_TUNNEL_SUBDOMAIN:-}
+      CF_ZONE: ${CLOUDFLARE_TUNNEL_ZONE:-}
+      CF_EXTRA_ROUTES: ${CLOUDFLARE_TUNNEL_EXTRA_ROUTES:-}
+      CF_ORIGIN_HOST: ${CLOUDFLARE_TUNNEL_ORIGIN_HOST:-}
+    depends_on:
+      nginx:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - ips-network
+    profiles:
+      - tunnel
+
+  # Cloudflare Development Mode auto-enabler (enable with --profile tunnel-devmode)
+  # Polls every 2 minutes; re-enables dev mode when Cloudflare auto-disables it (3h expiry).
+  # Useful for debugging — bypasses Cloudflare caching. Not recommended for normal production use.
+  cf-devmode:
+    image: alpine:3.21
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        apk add --no-cache curl >/dev/null 2>&1
+        TOKEN="$${CF_DEVMODE_API_TOKEN:-$$CF_API_TOKEN}"
+        if [ -z "$$TOKEN" ] || [ -z "$$CF_ZONE_ID" ]; then
+          echo "cf-devmode: CF_DEVMODE_ZONE_ID or API token not set. Exiting."
+          exit 1
+        fi
+        API="https://api.cloudflare.com/client/v4/zones/$$CF_ZONE_ID/settings/development_mode"
+        echo "cf-devmode: watching zone $$CF_ZONE_ID every 120s"
+        while true; do
+          STATUS=$$(curl -sf -H "Authorization: Bearer $$TOKEN" "$$API" | sed -n 's/.*"value":"\([^"]*\)".*/\1/p')
+          if [ "$$STATUS" = "off" ]; then
+            echo "cf-devmode: dev mode is OFF — re-enabling..."
+            RESULT=$$(curl -sf -X PATCH -H "Authorization: Bearer $$TOKEN" -H "Content-Type: application/json" -d '{"value":"on"}' "$$API" | sed -n 's/.*"success":\([a-z]*\).*/\1/p')
+            if [ "$$RESULT" = "true" ]; then
+              echo "cf-devmode: dev mode re-enabled (expires in 3h)"
+            else
+              echo "cf-devmode: ERROR — failed to enable dev mode. Check API token permissions (needs Zone:Settings:Edit)."
+            fi
+          elif [ "$$STATUS" = "on" ]; then
+            : # already on, nothing to do
+          else
+            echo "cf-devmode: WARNING — unexpected status '$$STATUS'. Check zone ID / token."
+          fi
+          sleep 120
+        done
+    environment:
+      CF_DEVMODE_API_TOKEN: ${CF_DEVMODE_API_TOKEN:-}
+      CF_API_TOKEN: ${CLOUDFLARE_TUNNEL_API_TOKEN:-}
+      CF_ZONE_ID: ${CF_DEVMODE_ZONE_ID:-}
+    restart: unless-stopped
+    profiles:
+      - tunnel-devmode
+
 networks:
   ips-network:
     driver: bridge
