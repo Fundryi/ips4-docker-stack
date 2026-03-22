@@ -3,7 +3,7 @@ services:
     image: busybox
     command: sh -c "chown -R 999:999 /data && sleep infinity"
     volumes:
-      - /srv/docker-data/ips4/mysql:/data
+      - ${DATA_DIR:-/srv/docker-data/ips4}/mysql:/data
     restart: unless-stopped
 
   db:
@@ -17,7 +17,7 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     volumes:
-      - /srv/docker-data/ips4/mysql:/var/lib/mysql
+      - ${DATA_DIR:-/srv/docker-data/ips4}/mysql:/var/lib/mysql
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
@@ -31,7 +31,7 @@ services:
     image: busybox
     command: sh -c "chown -R 999:999 /data && sleep infinity"
     volumes:
-      - /srv/docker-data/ips4/redis:/data
+      - ${DATA_DIR:-/srv/docker-data/ips4}/redis:/data
     restart: unless-stopped
 
   redis:
@@ -41,7 +41,7 @@ services:
         condition: service_started
     command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
     volumes:
-      - /srv/docker-data/ips4/redis:/data
+      - ${DATA_DIR:-/srv/docker-data/ips4}/redis:/data
       - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
     restart: unless-stopped
     healthcheck:
@@ -55,7 +55,7 @@ services:
   php:
     build: ./php
     volumes:
-      - /srv/docker-data/ips4/ips:/var/www/html
+      - ${DATA_DIR:-/srv/docker-data/ips4}/ips:/var/www/html
     restart: unless-stopped
     depends_on:
       db:
@@ -79,10 +79,10 @@ services:
     ports:
       - "${HTTP_PORT:-80}:80"
     volumes:
-      - /srv/docker-data/ips4/ips:/var/www/html:ro
-      - /srv/docker-data/ips4/certbot/www:/var/www/certbot:ro
+      - ${DATA_DIR:-/srv/docker-data/ips4}/ips:/var/www/html:ro
+      - ${DATA_DIR:-/srv/docker-data/ips4}/certbot/www:/var/www/certbot:ro
       - ./nginx/http.conf:/etc/nginx/conf.d/default.conf:ro
-      - /srv/docker-data/ips4/logs/nginx:/var/log/nginx
+      - ${DATA_DIR:-/srv/docker-data/ips4}/logs/nginx:/var/log/nginx
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/health"]
@@ -107,11 +107,11 @@ services:
       - "${HTTP_PORT:-80}:80"
       - "${HTTPS_PORT:-443}:443"
     volumes:
-      - /srv/docker-data/ips4/ips:/var/www/html:ro
-      - /srv/docker-data/ips4/ssl:/etc/nginx/ssl:ro
-      - /srv/docker-data/ips4/certbot/www:/var/www/certbot:ro
+      - ${DATA_DIR:-/srv/docker-data/ips4}/ips:/var/www/html:ro
+      - ${DATA_DIR:-/srv/docker-data/ips4}/ssl:/etc/nginx/ssl:ro
+      - ${DATA_DIR:-/srv/docker-data/ips4}/certbot/www:/var/www/certbot:ro
       - ./nginx/https.conf.template:/etc/nginx/templates/default.conf.template:ro
-      - /srv/docker-data/ips4/logs/nginx:/var/log/nginx
+      - ${DATA_DIR:-/srv/docker-data/ips4}/logs/nginx:/var/log/nginx
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/health"]
@@ -131,9 +131,9 @@ services:
     environment:
       - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
     volumes:
-      - /srv/docker-data/ips4/ssl:/etc/letsencrypt
-      - /srv/docker-data/ips4/certbot/www:/var/www/certbot
-      - /srv/docker-data/ips4/certbot/logs:/var/log/letsencrypt
+      - ${DATA_DIR:-/srv/docker-data/ips4}/ssl:/etc/letsencrypt
+      - ${DATA_DIR:-/srv/docker-data/ips4}/certbot/www:/var/www/certbot
+      - ${DATA_DIR:-/srv/docker-data/ips4}/certbot/logs:/var/log/letsencrypt
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do if [ -n \"$$CLOUDFLARE_API_TOKEN\" ]; then certbot renew --dns-cloudflare --dns-cloudflare-credentials /etc/letsencrypt/cloudflare.ini; else certbot renew --webroot -w /var/www/certbot; fi; sleep 24h & wait $${!}; done;'"
     restart: unless-stopped
     depends_on:
@@ -169,7 +169,7 @@ services:
       db:
         condition: service_healthy
     volumes:
-      - /srv/docker-data/ips4/backups/mysql:/backups
+      - ${DATA_DIR:-/srv/docker-data/ips4}/backups/mysql:/backups
     restart: unless-stopped
     networks:
       - ips-network
@@ -181,7 +181,7 @@ services:
   cron:
     build: ./php
     volumes:
-      - /srv/docker-data/ips4/ips:/var/www/html
+      - ${DATA_DIR:-/srv/docker-data/ips4}/ips:/var/www/html
     depends_on:
       php:
         condition: service_healthy
