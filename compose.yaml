@@ -52,6 +52,24 @@ services:
     networks:
       - ips-network
 
+  web-init:
+    image: busybox
+    command:
+      - sh
+      - -c
+      - |
+        if [ ! -f /data/index.html ]; then
+          cp /seed/* /data/
+          echo "web-init: seeded placeholder files"
+        else
+          echo "web-init: files already exist, skipping"
+        fi
+        sleep infinity
+    volumes:
+      - ${DATA_DIR:-/srv/docker-data/ips4}/ips:/data
+      - ./data/ips:/seed:ro
+    restart: unless-stopped
+
   php:
     build: ./php
     volumes:
