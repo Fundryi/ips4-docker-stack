@@ -4,19 +4,23 @@ Production-ready Docker Compose setup for Invision Community (IPS4) with MySQL 8
 
 ## Features
 
-- **Full IPS4 Support** - PHP 8.1 with all required extensions
+- **Full IPS4 Support** - PHP 8.1 with all required extensions + ionCube Loader
 - **High Performance** - Redis caching, OPcache, optimized MySQL
-- **Automatic SSL** - Let's Encrypt with auto-renewal via Certbot
-- **Easy Deployment** - Single command startup, SSL toggle via `.env`
+- **Automatic SSL** - Let's Encrypt with auto-renewal (DNS or HTTP challenge)
+- **Cloudflare Tunnel** - External access without opening ports, with auto-provisioning
+- **Automated Backups** - Configurable MySQL backup service with retention
+- **Task Scheduler** - Built-in IPS4 cron service
+- **Fresh Deploy Ready** - Auto-seeds setup files on first boot
+- **Configurable Data Path** - `DATA_DIR` env var for flexible storage location
 
 ## Quick Start
 
 ```bash
 # 1. Setup environment
 cp .env.example .env
-nano .env  # Set your passwords
+nano .env  # Set your passwords and DATA_DIR
 
-# 2. Start
+# 2. Start (HTTP mode)
 docker compose up -d
 
 # 3. Access
@@ -25,14 +29,22 @@ open http://localhost
 
 ## Services
 
-| Service | Description | Port |
-|---------|-------------|------|
-| `nginx` | Web server (HTTP) | 80 |
-| `nginx-https` | Web server (HTTPS) | 80, 443 |
-| `php` | PHP-FPM 8.1 | 9000 |
-| `db` | MySQL 8.4 | 3306 |
-| `redis` | Redis 7 | 6379 |
-| `certbot` | SSL renewal | - |
+| Service | Description | Profile | Port |
+|---------|-------------|---------|------|
+| `db-init` | MySQL data directory ownership fix | _(always)_ | - |
+| `db` | MySQL 8.4 | _(always)_ | 3306 |
+| `redis-init` | Redis data directory ownership fix | _(always)_ | - |
+| `redis` | Redis 7 | _(always)_ | 6379 |
+| `web-init` | Seeds IPS4 placeholder files on fresh deploy | _(always)_ | - |
+| `php` | PHP-FPM 8.1 with IPS4 extensions | _(always)_ | 9000 |
+| `nginx` | Web server (HTTP only) | `http` | 80 |
+| `nginx-https` | Web server (HTTPS) | `https` | 80, 443 |
+| `certbot` | SSL certificate renewal | `https` | - |
+| `nginx-reload` | Daily nginx reload for cert pickup | `https` | - |
+| `db-backup` | Automated MySQL backups | `backup` | - |
+| `cron` | IPS4 task scheduler (runs every 60s) | `cron` | - |
+| `cloudflared` | Cloudflare Tunnel for external access | `tunnel` | - |
+| `cf-devmode` | Keeps Cloudflare dev mode enabled | `tunnel-devmode` | - |
 
 ## Nginx Config Files
 
@@ -44,14 +56,47 @@ open http://localhost
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `DATA_DIR` | `/srv/docker-data/ips4` | Base path for all persistent volumes |
 | `MYSQL_PASSWORD` | - | MySQL user password (required) |
 | `MYSQL_ROOT_PASSWORD` | - | MySQL root password (required) |
 | `HTTP_PORT` | `80` | HTTP port |
 | `HTTPS_PORT` | `443` | HTTPS port |
-| `COMPOSE_PROFILES` | `http` | `http` for HTTP only, `https` for SSL |
+| `COMPOSE_PROFILES` | `http` | Comma-separated profiles (see below) |
 | `DOMAIN` | `example.com` | Domain for SSL certificate |
 | `CERTBOT_EMAIL` | - | Email for Let's Encrypt notifications |
-| `CLOUDFLARE_API_TOKEN` | - | Cloudflare API token for DNS challenge (optional) |
+| `CLOUDFLARE_API_TOKEN` | - | Cloudflare API token for DNS challenge |
+| `IPS_TASK_KEY` | - | IPS4 task key from ACP (for cron profile) |
+| `BACKUP_INTERVAL_HOURS` | `1` | Hours between database backups |
+| `BACKUP_RETENTION_DAYS` | `7` | Delete backups older than N days |
+
+### Profiles
+
+Enable profiles via `COMPOSE_PROFILES` in `.env` (comma-separated):
+
+```bash
+# HTTP with cron and backups (recommended)
+COMPOSE_PROFILES=http,cron,backup
+
+# HTTPS with all features
+COMPOSE_PROFILES=https,cron,backup
+
+# Cloudflare Tunnel (use alongside http profile)
+COMPOSE_PROFILES=http,tunnel,cron,backup
+```
+
+### Cloudflare Tunnel Variables
+
+| Variable | Description |
+|----------|-------------|
+| `CLOUDFLARE_TUNNEL_API_TOKEN` | CF API token (Account:Tunnel:Edit + Zone:DNS:Edit) |
+| `CLOUDFLARE_TUNNEL_TOKEN` | Pre-provisioned tunnel token (skips auto-provisioning) |
+| `CLOUDFLARE_TUNNEL_NAME` | Tunnel name (default: `ips4`) |
+| `CLOUDFLARE_TUNNEL_SUBDOMAIN` | Primary subdomain for DNS |
+| `CLOUDFLARE_TUNNEL_ZONE` | Cloudflare zone (domain) |
+| `CLOUDFLARE_TUNNEL_ORIGIN_HOST` | Origin Host header (must match IPS4 base_url) |
+| `CLOUDFLARE_TUNNEL_EXTRA_ROUTES` | Extra sub=service pairs, comma-separated |
+| `CF_DEVMODE_ZONE_ID` | Zone ID for dev mode watcher |
+| `CF_DEVMODE_API_TOKEN` | API token for dev mode (falls back to tunnel token) |
 
 ## SSL/HTTPS Setup
 
@@ -76,9 +121,6 @@ Best for local domains, internal networks, or when port 80 isn't available.
 
 3. **Run the SSL script:**
    ```bash
-   # Komodo users: stacks are typically in /etc/komodo/stacks/ips4/
-   cd /etc/komodo/stacks/ips4/
-
    chmod +x scripts/init-ssl.sh
    ./scripts/init-ssl.sh
    docker compose up -d
@@ -92,26 +134,15 @@ Traditional method - requires port 80 to be publicly accessible.
    ```bash
    DOMAIN=yourdomain.com
    CERTBOT_EMAIL=your@email.com
-   # Leave CLOUDFLARE_API_TOKEN empty or remove it
+   # Leave CLOUDFLARE_API_TOKEN empty
    ```
 
 2. **Run the SSL script:**
    ```bash
-   cd /etc/komodo/stacks/ips4/
-
    chmod +x scripts/init-ssl.sh
    ./scripts/init-ssl.sh
    docker compose up -d
    ```
-
-### Important Notes
-
-**Run commands on the host machine** (or Komodo periphery container), not inside the IPS4 containers. The script needs access to the project directory and runs `docker compose` commands.
-
-**Find your project path:**
-```bash
-docker inspect ips4-nginx-1 --format '{{ index .Config.Labels "com.docker.compose.project.working_dir" }}'
-```
 
 ### Auto-Renewal
 
@@ -130,15 +161,38 @@ COMPOSE_PROFILES=https
 
 Then restart: `docker compose down && docker compose up -d`
 
+## Cloudflare Tunnel
+
+Access your IPS4 instance externally without opening ports. The tunnel auto-provisions on first boot.
+
+**Priority:** `CLOUDFLARE_TUNNEL_TOKEN` (direct) > `CLOUDFLARE_TUNNEL_API_TOKEN` (auto-provision) > quick tunnel (random URL).
+
+1. **Configure `.env`:**
+   ```bash
+   COMPOSE_PROFILES=http,tunnel,cron,backup
+   CLOUDFLARE_TUNNEL_API_TOKEN=your_token
+   CLOUDFLARE_TUNNEL_ZONE=yourdomain.com
+   CLOUDFLARE_TUNNEL_SUBDOMAIN=forum
+   ```
+
+2. **Start:**
+   ```bash
+   docker compose up -d
+   ```
+
+The tunnel service will create a named tunnel, configure ingress, and set up DNS automatically.
+
+> **Note:** The tunnel profile requires the `http` profile to also be active, as it depends on the nginx service.
+
 ## Local Development (Windows)
 
-The base `compose.yaml` uses absolute Linux paths (`/srv/docker-data/ips4/...`) for production servers. For local development on Windows, a `compose.override.yaml` remaps these to the local `./data/` directory instead.
+The base `compose.yaml` uses `DATA_DIR` (default `/srv/docker-data/ips4/`) for production servers. For local development on Windows, a `compose.override.yaml` remaps these to the local `./data/` directory instead.
 
 ### How it works
 
 | | Production (Linux) | Local (Windows) |
 |---|---|---|
-| Data location | `/srv/docker-data/ips4/` | `./data/` in project dir |
+| Data location | `DATA_DIR` (default `/srv/docker-data/ips4/`) | `./data/` in project dir |
 | Override file | Not present | `compose.override.yaml` |
 | Files editable via | Server filesystem | Windows Explorer / VS Code |
 | SSL setup | `./scripts/init-ssl.sh` | Certbot via Docker (see below) |
@@ -151,7 +205,7 @@ Docker Compose automatically loads `compose.override.yaml` when present — no e
 
 ```yaml
 # Local development overrides - NOT committed to git
-# Remaps /srv/docker-data/ips4/ paths to local ./data/ for Windows
+# Remaps DATA_DIR paths to local ./data/ for Windows
 services:
   db-init:
     volumes:
@@ -168,6 +222,11 @@ services:
   redis:
     volumes:
       - ./data/redis:/data
+
+  web-init:
+    volumes:
+      - ./data/ips:/data
+      - ./data/ips:/seed:ro
 
   php:
     volumes:
@@ -207,31 +266,9 @@ docker compose up -d --build
 
 Your IPS4 files in `data/ips/` are now served directly. Open `http://localhost`.
 
-### Local HTTPS (optional)
-
-Since the shell scripts can't run on Windows natively, use certbot via Docker with the Cloudflare DNS challenge:
-
-```powershell
-# 1. Create cloudflare credentials
-echo dns_cloudflare_api_token = YOUR_TOKEN > data/ssl/cloudflare.ini
-
-# 2. Get certificate (no port 80 needed)
-docker run --rm -v "%cd%/data/ssl:/etc/letsencrypt" certbot/dns-cloudflare certonly --dns-cloudflare --dns-cloudflare-credentials /etc/letsencrypt/cloudflare.ini -d yourdomain.com --email you@email.com --agree-tos --no-eff-email
-
-# 3. Copy certs to where nginx expects them
-copy data\ssl\live\yourdomain.com\fullchain.pem data\ssl\fullchain.pem
-copy data\ssl\live\yourdomain.com\privkey.pem data\ssl\privkey.pem
-```
-
-Then set `COMPOSE_PROFILES=https` in `.env` and add your domain to `C:\Windows\System32\drivers\etc\hosts`:
-
-```
-127.0.0.1  yourdomain.com
-```
-
 ## IPS4 Installation
 
-1. Extract IPS4 files to `data/ips/`
+1. Extract IPS4 files to your data directory (`DATA_DIR/ips/` or `data/ips/` locally)
 2. Visit `http://yourdomain.com`
 3. Use these database settings:
    - **Host:** `db`
@@ -250,22 +287,26 @@ docker compose up -d                # Start
 docker compose down                 # Stop
 docker compose logs -f [service]    # View logs
 docker compose restart [service]    # Restart service
-docker compose exec db mysqldump -u root -p ips > backup.sql  # Backup DB
+docker compose exec db mysqldump -u root -p ips > backup.sql  # Manual DB backup
 ```
 
 ## Directory Structure
 
 ```
 ips4-docker-stack/
-├── compose.yaml              # Main Docker Compose config (production paths)
+├── .github/workflows/        # CI: co-author check, Docker image publishing
+├── compose.yaml              # Main Docker Compose config
 ├── compose.override.yaml     # Local overrides - gitignored (see Local Development)
 ├── .env                      # Environment config (gitignored)
 ├── data/
-│   ├── ips/                  # IPS4 files (used locally via override)
-│   ├── mysql/                # MySQL data
-│   ├── redis/                # Redis data
-│   ├── ssl/                  # SSL certificates
-│   └── certbot/              # Certbot data
+│   ├── ips/                  # IPS4 placeholder files (setup.php, index.html, ips4.php)
+│   ├── mysql/                # MySQL data (gitignored)
+│   ├── redis/                # Redis data (gitignored)
+│   ├── ssl/                  # SSL certificates (gitignored)
+│   └── certbot/              # Certbot data (gitignored)
+├── docker/
+│   ├── db-backup/            # Automated backup service (Dockerfile + entrypoint)
+│   └── cloudflared/          # Cloudflare Tunnel service (Dockerfile + entrypoint)
 ├── nginx/                    # Nginx configs (http.conf, https.conf.template)
 ├── php/                      # PHP-FPM Dockerfile & config
 ├── mysql/                    # MySQL Dockerfile & config
@@ -273,19 +314,22 @@ ips4-docker-stack/
 └── scripts/                  # SSL init & helper scripts (Linux)
 ```
 
-> **Note:** On production Linux servers, persistent data lives at `/srv/docker-data/ips4/` (defined in `compose.yaml`). Locally on Windows, `compose.override.yaml` remaps these to `./data/` so files are accessible from your editor.
+> **Note:** On production Linux servers, persistent data lives at `DATA_DIR` (default `/srv/docker-data/ips4/`). Locally on Windows, `compose.override.yaml` remaps these to `./data/`.
 
 ## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
-| Default nginx page | Ensure IPS4 files are in `data/ips/` |
+| Default nginx page | Ensure IPS4 files are in your data directory's `ips/` folder |
+| 403 on fresh deploy | The `web-init` service seeds placeholder files automatically — check `docker compose logs web-init` |
 | Database connection failed | Check `docker compose ps db` and verify `.env` passwords |
 | SSL errors | Run `bash scripts/fix-ssl.sh` to diagnose and fix |
 | SSL "No such authorization" | Run `bash scripts/fix-ssl.sh` then `bash scripts/init-ssl.sh` |
 | Port in use | Change `HTTP_PORT` or `HTTPS_PORT` in `.env` |
-| Permission denied (IPS files) | Run `sudo chown -R 33:33 data/ips/` (Linux) |
+| Permission denied (IPS files) | Run `sudo chown -R 33:33 $DATA_DIR/ips/` (Linux) |
 | Permission denied (scripts) | Run `chmod +x scripts/*.sh` or use `bash scripts/...` |
+| Tunnel can't reach nginx | Ensure `http` profile is active alongside `tunnel` |
+| Cron not running | Set `IPS_TASK_KEY` in `.env` (from ACP > System > Advanced Configuration > Tasks) |
 
 ## License
 
