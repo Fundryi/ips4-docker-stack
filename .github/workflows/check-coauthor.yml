@@ -1,0 +1,29 @@
+name: Block AI Co-Author
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for Co-Authored-By trailers
+        run: |
+          COMMITS=$(git log origin/main..HEAD --format="%H")
+          FOUND=0
+          for SHA in $COMMITS; do
+            MSG=$(git log -1 --format="%B" "$SHA")
+            if echo "$MSG" | grep -qi "^Co-Authored-By:"; then
+              echo "::error::Commit $SHA contains a Co-Authored-By trailer. Remove it before merging."
+              FOUND=1
+            fi
+          done
+          if [ "$FOUND" -eq 1 ]; then
+            exit 1
+          fi
+          echo "No Co-Authored-By trailers found."
