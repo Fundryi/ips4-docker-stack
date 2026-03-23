@@ -7,6 +7,7 @@ services:
     restart: unless-stopped
 
   db:
+    image: ghcr.io/fundryi/ips4-docker-stack/mysql:latest
     build: ./mysql
     depends_on:
       db-init:
@@ -71,6 +72,7 @@ services:
     restart: unless-stopped
 
   php:
+    image: ghcr.io/fundryi/ips4-docker-stack/php:latest
     build: ./php
     volumes:
       - ${DATA_DIR:-/srv/docker-data/ips4}/ips:/var/www/html
@@ -174,6 +176,7 @@ services:
   # Automated database backups (enable with --profile backup)
   # Runs on start then on schedule. All settings configurable via env.
   db-backup:
+    image: ghcr.io/fundryi/ips4-docker-stack/db-backup:latest
     build:
       context: ./docker/db-backup
     environment:
@@ -197,6 +200,7 @@ services:
   # IPS4 task scheduler cron (enable with --profile cron)
   # Set IPS_TASK_KEY in .env to the key shown in ACP > Advanced Configuration > Tasks
   cron:
+    image: ghcr.io/fundryi/ips4-docker-stack/php:latest
     build: ./php
     volumes:
       - ${DATA_DIR:-/srv/docker-data/ips4}/ips:/var/www/html
@@ -232,6 +236,7 @@ services:
   # Auto-provisions a named tunnel on first boot if CF_API_TOKEN is set.
   # Priority: TUNNEL_TOKEN (direct) > CF_API_TOKEN (auto-provision) > quick tunnel (random URL).
   cloudflared:
+    image: ghcr.io/fundryi/ips4-docker-stack/cloudflared:latest
     build:
       context: ./docker/cloudflared
     environment:

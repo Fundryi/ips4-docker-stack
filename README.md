@@ -20,11 +20,17 @@ Production-ready Docker Compose setup for Invision Community (IPS4) with MySQL 8
 cp .env.example .env
 nano .env  # Set your passwords and DATA_DIR
 
-# 2. Start (HTTP mode)
+# 2. Start (pulls pre-built images from ghcr.io)
 docker compose up -d
 
 # 3. Access
 open http://localhost
+```
+
+To build from source instead of pulling pre-built images:
+
+```bash
+docker compose up -d --build
 ```
 
 ## Services
