@@ -52,7 +52,13 @@ temp/
 # IPS4 specific files (if accidentally copied)
 conf_global.php
 requirements.php
-.claude/settings.local.json
+
+# AI assistant files (local-only, not for GitHub)
+CLAUDE.md
+AGENTS.md
+.claude/
+.cursor/
+.copilot/
 
 # Local scripts & docs (not for the repo)
 release.ps1
