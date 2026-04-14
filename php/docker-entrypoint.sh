@@ -7,8 +7,8 @@ FPM=/usr/local/etc/php-fpm.d/zz-env.conf
 : > "$INI"
 : > "$FPM"
 
-emit_ini() { [ -n "$2" ] && echo "$1=$2" >> "$INI"; }
-emit_fpm() { [ -n "$2" ] && echo "$1 = $2" >> "$FPM"; }
+emit_ini() { if [ -n "$2" ]; then echo "$1=$2" >> "$INI"; fi; }
+emit_fpm() { if [ -n "$2" ]; then echo "$1 = $2" >> "$FPM"; fi; }
 
 emit_ini memory_limit                       "$PHP_MEMORY_LIMIT"
 emit_ini upload_max_filesize                "$PHP_UPLOAD_MAX_FILESIZE"
