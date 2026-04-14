@@ -1,4 +1,6 @@
-FROM php:8.1-fpm-bookworm
+ARG PHP_VERSION=8.1
+FROM php:${PHP_VERSION}-fpm-bookworm
+ARG PHP_VERSION=8.1
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -45,8 +47,8 @@ RUN pecl install redis && docker-php-ext-enable redis
 # Install ionCube Loader (required for encoded XENNTEC app releases)
 RUN curl -fSL https://downloads.ioncube.com/loader_downloads/ioncube_loaders_lin_x86-64.tar.gz -o /tmp/ioncube.tar.gz \
     && tar -xzf /tmp/ioncube.tar.gz -C /tmp \
-    && cp /tmp/ioncube/ioncube_loader_lin_8.1.so "$(php -r 'echo ini_get("extension_dir");')/" \
-    && echo "zend_extension=ioncube_loader_lin_8.1.so" > /usr/local/etc/php/conf.d/00-ioncube.ini \
+    && cp /tmp/ioncube/ioncube_loader_lin_${PHP_VERSION}.so "$(php -r 'echo ini_get("extension_dir");')/" \
+    && echo "zend_extension=ioncube_loader_lin_${PHP_VERSION}.so" > /usr/local/etc/php/conf.d/00-ioncube.ini \
     && rm -rf /tmp/ioncube /tmp/ioncube.tar.gz
 
 # Create PHP session directory with proper ownership
@@ -68,3 +70,9 @@ RUN echo 'pm.status_path = /status' >> /usr/local/etc/php-fpm.d/zz-docker.conf
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
     CMD SCRIPT_NAME=/status SCRIPT_FILENAME=/status REQUEST_METHOD=GET cgi-fcgi -bind -connect 127.0.0.1:9000 || exit 1
+
+COPY docker-entrypoint.sh /usr/local/bin/ips-entrypoint.sh
+RUN chmod +x /usr/local/bin/ips-entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/ips-entrypoint.sh"]
+CMD ["php-fpm"]

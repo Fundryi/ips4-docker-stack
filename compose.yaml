@@ -73,7 +73,10 @@ services:
 
   php:
     image: ghcr.io/fundryi/ips4-docker-stack/php:latest
-    build: ./php
+    build:
+      context: ./php
+      args:
+        PHP_VERSION: ${PHP_VERSION:-8.1}
     volumes:
       - ${DATA_DIR:-/srv/docker-data/ips4}/ips:/var/www/html
     restart: unless-stopped
@@ -201,7 +204,10 @@ services:
   # Set IPS_TASK_KEY in .env to the key shown in ACP > Advanced Configuration > Tasks
   cron:
     image: ghcr.io/fundryi/ips4-docker-stack/php:latest
-    build: ./php
+    build:
+      context: ./php
+      args:
+        PHP_VERSION: ${PHP_VERSION:-8.1}
     volumes:
       - ${DATA_DIR:-/srv/docker-data/ips4}/ips:/var/www/html
     depends_on:
