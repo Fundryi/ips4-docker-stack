@@ -218,6 +218,10 @@ services:
         condition: service_healthy
     environment:
       IPS_TASK_KEY: ${IPS_TASK_KEY:-}
+    # cron reuses the php image but runs a shell task loop, not php-fpm on :9000.
+    # Disable the image's baked fcgi HEALTHCHECK or the container reports unhealthy forever.
+    healthcheck:
+      disable: true
     entrypoint: /bin/sh
     command:
       - -c
