@@ -370,6 +370,7 @@ ips4-docker-stack/
 | Permission denied (scripts) | Run `chmod +x scripts/*.sh` or use `bash scripts/...` |
 | Tunnel can't reach nginx | Ensure `http` profile is active alongside `tunnel` |
 | Cron not running | Set `IPS_TASK_KEY` in `.env` (from ACP > System > Advanced Configuration > Tasks) |
+| Cron logs `DB unreachable, skipping this run` | Normal during a DB restart or full-stack redeploy — cron skips that cycle instead of erroring, and resumes automatically once `db` is back |
 
 ## License
 

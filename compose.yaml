@@ -25,6 +25,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 40s
     networks:
       - ips-network
 
@@ -50,6 +51,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 20s
     networks:
       - ips-network
 
@@ -90,6 +92,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 40s
     networks:
       - ips-network
 
@@ -229,7 +232,11 @@ services:
         done
         echo "cron: DB ready. IPS task scheduler running every 60s"
         while true; do
-          /usr/local/bin/php -d memory_limit=-1 -d max_execution_time=0 /var/www/html/applications/core/interface/task/task.php "$$IPS_TASK_KEY" 2>&1
+          if php -r "require '/var/www/html/conf_global.php'; new mysqli(\$$INFO['sql_host'], \$$INFO['sql_user'], \$$INFO['sql_pass'], \$$INFO['sql_database'], \$$INFO['sql_port']);" 2>/dev/null; then
+            /usr/local/bin/php -d memory_limit=-1 -d max_execution_time=0 /var/www/html/applications/core/interface/task/task.php "$$IPS_TASK_KEY" >/dev/null 2>&1
+          else
+            echo "cron: DB unreachable (stack recreating?), skipping this run"
+          fi
           sleep 60
         done
     restart: unless-stopped
