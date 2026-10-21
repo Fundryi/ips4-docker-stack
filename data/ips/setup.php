@@ -316,7 +316,7 @@ MYSQL_ROOT_PASSWORD=your_secure_root_password</code></pre>
             </span>
             <div class="tech-stack">
                 <span class="tech">Nginx</span>
-                <span class="tech">PHP-FPM 8.1</span>
+                <span class="tech">PHP-FPM 8.2</span>
                 <span class="tech">MySQL 8.4</span>
                 <span class="tech">Redis 7</span>
                 <span class="tech">Let's Encrypt</span>

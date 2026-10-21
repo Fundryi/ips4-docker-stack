@@ -1,10 +1,10 @@
 # IPS4 Docker Stack
 
-Production-ready Docker Compose setup for Invision Community (IPS4) with MySQL 8.4, Redis 7, PHP-FPM 8.1, Nginx, and automatic SSL via Let's Encrypt.
+Production-ready Docker Compose setup for Invision Community (IPS4) with MySQL 8.4, Redis 7, PHP-FPM 8.2, Nginx, and automatic SSL via Let's Encrypt.
 
 ## Features
 
-- **Full IPS4 Support** - PHP 8.1 with all required extensions + ionCube Loader
+- **Full IPS4 Support** - PHP 8.2 with all required extensions + ionCube Loader
 - **High Performance** - Redis caching, OPcache, optimized MySQL
 - **Automatic SSL** - Let's Encrypt with auto-renewal (DNS or HTTP challenge)
 - **Cloudflare Tunnel** - External access without opening ports, with auto-provisioning
@@ -42,7 +42,7 @@ docker compose up -d --build
 | `redis-init` | Redis data directory ownership fix | _(always)_ | - |
 | `redis` | Redis 7 | _(always)_ | 6379 |
 | `web-init` | Seeds IPS4 placeholder files on fresh deploy | _(always)_ | - |
-| `php` | PHP-FPM 8.1 with IPS4 extensions | _(always)_ | 9000 |
+| `php` | PHP-FPM 8.2 with IPS4 extensions | _(always)_ | 9000 |
 | `nginx` | Web server (HTTP only) | `http` | 80 |
 | `nginx-https` | Web server (HTTPS) | `https` | 80, 443 |
 | `certbot` | SSL certificate renewal | `https` | - |
@@ -74,7 +74,6 @@ docker compose up -d --build
 | `IPS_TASK_KEY` | - | IPS4 task key from ACP (for cron profile) |
 | `BACKUP_INTERVAL_HOURS` | `1` | Hours between database backups |
 | `BACKUP_RETENTION_DAYS` | `7` | Delete backups older than N days |
-| `PHP_VERSION` | `8.1` | PHP major version baked into the image at build time (e.g. `8.2`) |
 
 ### PHP / PHP-FPM Tuning (optional)
 
@@ -105,9 +104,11 @@ Baked defaults in `php/php.ini` and `php/www.conf` are production-ready for IPS4
 
 Overrides are written at container start to `zz-env.ini` / `zz-env.conf` which load after the baked config. Never add DB credentials or other secrets to the `php` service environment.
 
-### Switching PHP Version
+### PHP Version
 
-The default PHP version is **8.1**. To build against 8.2, set `PHP_VERSION=8.2` in `.env` and rebuild locally (`docker compose build php cron`). Pre-built GHCR images always ship the default version — non-default versions require a local build.
+The stack ships **PHP 8.2 only**. The `php` image is pinned to `php:8.2-fpm-bookworm` and every build pulls the latest 8.2.x patch release. PHP 8.1 is no longer supported and there is no build-time switch; if you still have `PHP_VERSION` in your `.env`, remove it, it has no effect.
+
+Upgrading from an older 8.1 image: pull or rebuild (`docker compose pull php` or `docker compose build php cron`), then `docker compose up -d`. Check `/setup.php` or `/ips4.php` afterwards to confirm the running version.
 
 ### Profiles
 

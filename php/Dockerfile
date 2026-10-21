@@ -1,6 +1,5 @@
-ARG PHP_VERSION=8.1
-FROM php:${PHP_VERSION}-fpm-bookworm
-ARG PHP_VERSION=8.1
+# PHP 8.2 only. 8.1 is no longer supported; the version is intentionally not a build arg.
+FROM php:8.2-fpm-bookworm
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -41,14 +40,18 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
     sysvsem \
     ftp
 
-# Install Redis extension via PECL
-RUN pecl install redis && docker-php-ext-enable redis
+# Install Redis extension (phpredis) from the GitHub release tarball; pecl.php.net downloads are unreliable
+ARG PHPREDIS_VERSION=6.3.0
+RUN curl -fSL "https://github.com/phpredis/phpredis/archive/refs/tags/${PHPREDIS_VERSION}.tar.gz" -o /tmp/phpredis.tar.gz \
+    && mkdir -p /tmp/phpredis && tar -xzf /tmp/phpredis.tar.gz -C /tmp/phpredis --strip-components=1 \
+    && docker-php-ext-install -j"$(nproc)" /tmp/phpredis \
+    && rm -rf /tmp/phpredis /tmp/phpredis.tar.gz
 
 # Install ionCube Loader (required for encoded XENNTEC app releases)
 RUN curl -fSL https://downloads.ioncube.com/loader_downloads/ioncube_loaders_lin_x86-64.tar.gz -o /tmp/ioncube.tar.gz \
     && tar -xzf /tmp/ioncube.tar.gz -C /tmp \
-    && cp /tmp/ioncube/ioncube_loader_lin_${PHP_VERSION}.so "$(php -r 'echo ini_get("extension_dir");')/" \
-    && echo "zend_extension=ioncube_loader_lin_${PHP_VERSION}.so" > /usr/local/etc/php/conf.d/00-ioncube.ini \
+    && cp /tmp/ioncube/ioncube_loader_lin_8.2.so "$(php -r 'echo ini_get("extension_dir");')/" \
+    && echo "zend_extension=ioncube_loader_lin_8.2.so" > /usr/local/etc/php/conf.d/00-ioncube.ini \
     && rm -rf /tmp/ioncube /tmp/ioncube.tar.gz
 
 # Create PHP session directory with proper ownership

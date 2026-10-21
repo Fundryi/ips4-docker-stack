@@ -1,5 +1,5 @@
 <?php
-$baseRequirements = [ 'php' => [ 'required' => '8.0.0', 'recommended' => '8.1.0' ], 'mysql' => [ 'required' => '5.5.3', 'recommended' => '8.0.13' ] ]; // Base requirements for 4.7
+$baseRequirements = [ 'php' => [ 'required' => '8.2.0', 'recommended' => '8.2.0' ], 'mysql' => [ 'required' => '5.5.3', 'recommended' => '8.0.13' ] ]; // Base requirements for 4.7
 $streamContext = stream_context_create( [ 'http' => [ 'user_agent' => 'Invision Community Requirement Checker' ] ] );
 $remoteRequirements = json_decode( file_get_contents( 'https://remoteservices.invisionpower.com/requirements?version=107800', FALSE, $streamContext ), TRUE );
 $latestVersion = json_decode( file_get_contents( 'https://remoteservices.invisionpower.com/updateCheck', FALSE, $streamContext ), TRUE );
@@ -164,7 +164,7 @@ $requirements = $remoteRequirements ?: $baseRequirements;
 				<a href="?phpinfo" class="phpinfo">phpinfo</a>
 				<h2>PHP Requirements</h2>
 				<ul>
-<?php if ( version_compare( PHP_VERSION, '8.1.999' ) < 1 AND version_compare( PHP_VERSION, $requirements['php']['required'] ) >= 0 ): ?>
+<?php if ( version_compare( PHP_VERSION, '8.2.999' ) < 1 AND version_compare( PHP_VERSION, $requirements['php']['required'] ) >= 0 ): ?>
 					<li class="success">PHP version <?php echo PHP_VERSION; ?>.</li>
 <?php else: $success = FALSE; ?>
 					<li class="fail">You are not running a compatible version of PHP. You need PHP <?php echo $requirements['php']['required']; ?> or <?php echo $requirements['php']['recommended']; ?>. You should contact your hosting provider or system administrator to ask for this to be changed.</li>
