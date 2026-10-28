@@ -4,12 +4,52 @@ on:
   push:
     tags:
       - "v*"
+  schedule:
+    - cron: "17 3 * * 1"   # Monday 03:17 UTC, rebuild :latest for base-image updates
+  workflow_dispatch:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
+  # Versioned releases are still built locally by release.ps1. This job only
+  # refreshes :latest so base-image fixes land without a release.
+  rebuild-latest:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: php
+            context: ./php
+          - name: mysql
+            context: ./mysql
+          - name: db-backup
+            context: ./docker/db-backup
+          - name: cloudflared
+            context: ./docker/cloudflared
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          pull: true
+          push: true
+          tags: ghcr.io/fundryi/ips4-docker-stack/${{ matrix.name }}:latest
+
   release:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

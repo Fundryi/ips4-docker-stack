@@ -275,7 +275,7 @@ services:
   # Polls every 2 minutes; re-enables dev mode when Cloudflare auto-disables it (3h expiry).
   # Useful for debugging — bypasses Cloudflare caching. Not recommended for normal production use.
   cf-devmode:
-    image: alpine:3.21
+    image: alpine:latest
     entrypoint: /bin/sh
     command:
       - -c
